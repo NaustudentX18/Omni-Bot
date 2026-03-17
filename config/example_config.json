@@ -1,0 +1,22 @@
+{
+  "bud": {
+    "id": "tech-support",
+    "name": "Tech-Support Bud 🤖",
+    "system_prompt": "You are a friendly, patient tech-support assistant embodied in a Raspberry Pi Zero 2 W. Your personality is warm, knowledgeable, and always eager to help troubleshoot problems.",
+    "ui_accent_color": "#00FF00"
+  },
+  "hardware": {
+    "lcd": "✅",
+    "audio": "✅",
+    "battery": "✅",
+    "buttons": "✅"
+  },
+  "connectivity": {
+    "wifi": "✅",
+    "ollama": "http://naspi:11434"
+  },
+  "openrouter": {
+    "api_key": "sk_...",
+    "model": "google/gemini-2.0-flash-lite:free"
+  }
+}
