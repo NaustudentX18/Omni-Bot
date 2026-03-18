@@ -26,7 +26,8 @@ class FrameRenderer:
         battery_level: int,
         is_charging: bool,
         connectivity_status: str,
-        animation_frame: Optional[AnimationFrame] = None
+        animation_frame: Optional[AnimationFrame] = None,
+        activity_icon: str = ""
     ) -> bool:
         """Render the main status HUD.
         
@@ -46,7 +47,13 @@ class FrameRenderer:
             lcd_display.clear(self.theme.BACKGROUND.rgb())
             
             # Top bar: Status icons
-            self._render_top_bar(lcd_display, battery_level, is_charging, connectivity_status)
+            self._render_top_bar(
+                lcd_display,
+                battery_level,
+                is_charging,
+                connectivity_status,
+                activity_icon,
+            )
             
             # Title: Current Bud name
             bud_color = self.theme.get_personality_color(bud_name.split()[0].lower())
@@ -213,7 +220,8 @@ class FrameRenderer:
         lcd_display,
         battery_level: int,
         is_charging: bool,
-        connectivity_status: str
+        connectivity_status: str,
+        activity_icon: str = ""
     ):
         """Render top status bar."""
         # Battery icon
@@ -240,6 +248,15 @@ class FrameRenderer:
             color=self.theme.TEXT_SECONDARY.rgb(),
             font="sm"
         )
+
+        if activity_icon:
+            lcd_display.draw_text(
+                110,
+                5,
+                activity_icon,
+                color=self.theme.NEON_GREEN.rgb(),
+                font="sm",
+            )
         
         # Thin separator line
         lcd_display.draw_line(0, 20, self.width, 20, color=self.theme.NEON_BLUE.rgb(), width=1)

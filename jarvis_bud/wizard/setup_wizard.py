@@ -5,6 +5,11 @@ import os
 import time
 from typing import Optional, Dict, Any
 from pathlib import Path
+import sys
+
+from jarvis_bud.core import LocalOllamaClient
+from jarvis_bud.ui import FrameRenderer
+from jarvis_bud.hardware import ST7789Display
 
 
 class SetupWizard:
@@ -31,6 +36,8 @@ class SetupWizard:
         self.buds_path = buds_path
         self.config: Dict[str, Any] = {}
         self.buds: Dict[str, Any] = {}
+        self.display: Optional[ST7789Display] = None
+        self.renderer: Optional[FrameRenderer] = None
         
         self._load_buds()
 
@@ -40,10 +47,88 @@ class SetupWizard:
             with open(self.buds_path, 'r') as f:
                 data = json.load(f)
                 self.buds = {bud["id"]: bud for bud in data.get("buds", [])}
+
+                if "fogo" not in self.buds:
+                    self.buds["fogo"] = {
+                        "id": "fogo",
+                        "name": "Fogo",
+                        "emoji": "🐐💻",
+                        "description": "Creative Python + Docker + 3D printing expert",
+                        "system_prompt": (
+                            "You are Fogo, a creative and proactive technical AI. "
+                            "Expert in Python, Docker, Bambu Lab P1S, and OrcaSlicer. "
+                            "You give punchy hacker-ready advice with technical emoji."
+                        ),
+                        "ui_accent_color": "#00FF66",
+                    }
+
+                if "mango" not in self.buds:
+                    self.buds["mango"] = {
+                        "id": "mango",
+                        "name": "Mango",
+                        "emoji": "🥭",
+                        "description": "Peace/love/vibe companion for calm planning",
+                        "system_prompt": (
+                            "You are Mango, a calm and uplifting AI guide. "
+                            "Focus on peace, thoughtful guidance, and positive action."
+                        ),
+                        "ui_accent_color": "#FFC857",
+                    }
+
                 print(f"✅ Loaded {len(self.buds)} personalities from buds.json")
         except Exception as e:
             print(f"⚠️  Could not load buds: {e}")
-            self.buds = {}
+            self.buds = {
+                "fogo": {
+                    "id": "fogo",
+                    "name": "Fogo",
+                    "emoji": "🐐💻",
+                    "description": "Creative Python + Docker + 3D printing expert",
+                    "system_prompt": "You are Fogo, a creative maker AI with hacker-ready advice.",
+                    "ui_accent_color": "#00FF66",
+                },
+                "mango": {
+                    "id": "mango",
+                    "name": "Mango",
+                    "emoji": "🥭",
+                    "description": "Peace/love/vibe companion",
+                    "system_prompt": "You are Mango, a calm and uplifting AI guide.",
+                    "ui_accent_color": "#FFC857",
+                },
+            }
+
+    def _init_lcd(self):
+        """Try to initialize LCD renderer for wizard UI."""
+        try:
+            self.display = ST7789Display()
+            if self.display.init():
+                self.renderer = FrameRenderer()
+        except Exception:
+            self.display = None
+            self.renderer = None
+
+    def _render_lcd_step(self, step_number: int, step_title: str, content_lines: list, progress: float):
+        if not self.display or not self.renderer:
+            return
+        self.renderer.render_wizard_step(
+            self.display,
+            step_number=step_number,
+            step_title=step_title,
+            content_lines=content_lines,
+            progress=progress,
+        )
+
+    def _meet_fogo_splash(self):
+        if not self.display or not self.renderer:
+            return
+        self.renderer.render_message(
+            self.display,
+            title="Meet Fogo",
+            message="Python + Docker + 3D Print Brain Online",
+            emoji="🐐💻",
+            message_type="success",
+        )
+        time.sleep(1.2)
 
     def should_run(self) -> bool:
         """Check if setup wizard should run (no config.json exists).
@@ -62,6 +147,8 @@ class SetupWizard:
         print("\n" + "="*60)
         print("🤖 JARVIS-BUD FIRST-BOOT WIZARD 🤖".center(60))
         print("="*60 + "\n")
+        self._init_lcd()
+        self._meet_fogo_splash()
         
         try:
             # Step 1: Hardware Check
@@ -104,6 +191,7 @@ class SetupWizard:
         """
         print(f"\n{'Step 1: Hardware Check 🔧':^60}")
         print("-" * 60)
+        self._render_lcd_step(1, "Hardware Check", ["Testing LCD", "Testing WM8960", "Testing PiSugar 3"], 0.25)
         
         from jarvis_bud.hardware import ST7789Display, AudioCodec, Battery, ButtonHandler
         
@@ -180,6 +268,7 @@ class SetupWizard:
         """
         print(f"\n{'Step 2: Connectivity 📡':^60}")
         print("-" * 60)
+        self._render_lcd_step(2, "Connectivity", ["Scanning LAN", "Finding Ollama", "Checking latency"], 0.5)
         
         connectivity = {}
         
@@ -202,25 +291,37 @@ class SetupWizard:
             print(f"   ⚠️  WiFi check disabled: {e}")
             connectivity["wifi"] = "⚠️"
         
-        # Pironman/Ollama Check
+        # Pironman/Ollama Check with latency threshold
         print("\n🌐 Checking for local Ollama server...")
         try:
-            from jarvis_bud.ai import OllamaClient
-            
-            for url in ["http://localhost:11434", "http://192.168.1.100:11434", "http://naspi:11434", "http://pironman:11434"]:
-                client = OllamaClient(base_url=url)
-                if client.is_available:
-                    print(f"   ✅ Local Ollama found at {url}")
-                    connectivity["ollama"] = url
-                    break
-            
-            if "ollama" not in connectivity:
-                print("   ℹ️  No local Ollama found (that's OK, can use cloud)")
+            candidates = [
+                "192.168.1.100",
+                "192.168.1.101",
+                "192.168.1.110",
+                "pironman",
+                "naspi",
+                "127.0.0.1",
+            ]
+            scanner = LocalOllamaClient(candidate_hosts=candidates, max_ping_ms=100.0)
+            endpoint = scanner.scan()
+
+            if endpoint:
+                url = endpoint.base_url
+                print(f"   ✅ Local Ollama found at {url} ({endpoint.latency_ms:.1f}ms)")
+                connectivity["ollama"] = url
+                connectivity["ollama_latency_ms"] = endpoint.latency_ms
+                connectivity["ollama_model"] = scanner.model or "llama3"
+            else:
+                print("   ℹ️  No <100ms Ollama host found. Will use OpenRouter failover.")
                 connectivity["ollama"] = None
-                
+                connectivity["ollama_latency_ms"] = None
+                connectivity["ollama_model"] = None
+
         except Exception as e:
             print(f"   ℹ️  Ollama check skipped: {e}")
             connectivity["ollama"] = None
+            connectivity["ollama_latency_ms"] = None
+            connectivity["ollama_model"] = None
         
         self.config["connectivity"] = connectivity
         return True
@@ -233,6 +334,7 @@ class SetupWizard:
         print(f"\n{'Step 3: Pick Your Bud 🤝':^60}")
         print("-" * 60)
         print("\nAvailable personalities:\n")
+        self._render_lcd_step(3, "Pick Your Bud", ["Fogo: maker brain", "Mango: chill vibe", "Button B cycles later"], 0.75)
         
         bud_list = list(self.buds.values())
         
@@ -240,6 +342,17 @@ class SetupWizard:
             print(f"  {i}. {bud['name']}")
             print(f"     └─ {bud['description']}\n")
         
+        if not sys.stdin.isatty():
+            selected_bud = self.buds.get("fogo") or bud_list[0]
+            self.config["bud"] = {
+                "id": selected_bud["id"],
+                "name": selected_bud["name"],
+                "system_prompt": selected_bud["system_prompt"],
+                "ui_accent_color": selected_bud["ui_accent_color"],
+            }
+            print(f"\n✅ Non-interactive mode: defaulted to {selected_bud['name']}\n")
+            return True
+
         while True:
             try:
                 choice = input(f"Select personality (1-{len(bud_list)}): ").strip()
@@ -268,11 +381,15 @@ class SetupWizard:
         """
         print(f"\n{'Step 4: API Configuration 🔑':^60}")
         print("-" * 60)
+        self._render_lcd_step(4, "API Setup", ["OpenRouter optional", "Gemini 2.0 Flash Lite", "Used for failover"], 1.0)
         
         print("\n🌐 OpenRouter Setup (Optional but recommended for mobile use)")
         print("   Get a free API key at: https://openrouter.ai/keys")
         
-        api_choice = input("\nEnter OpenRouter API key (or press Enter to skip): ").strip()
+        if sys.stdin.isatty():
+            api_choice = input("\nEnter OpenRouter API key (or press Enter to skip): ").strip()
+        else:
+            api_choice = os.environ.get("OPENROUTER_API_KEY", "").strip()
         
         if api_choice:
             # Validate API key

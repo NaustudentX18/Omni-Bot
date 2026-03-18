@@ -1,16 +1,14 @@
 """Main Entry Point for Jarvis-Bud."""
 
 import asyncio
-import json
 import sys
 from typing import Optional
 
-# Import all modules
 from jarvis_bud.config import ConfigManager
 from jarvis_bud.wizard import SetupWizard
-from jarvis_bud.hardware import ST7789Display, AudioCodec, Battery, ButtonHandler
+from jarvis_bud.hardware import Battery, WhisplayIO
 from jarvis_bud.ui import FrameRenderer, WaveformAnimator
-from jarvis_bud.ai import AIRouter
+from jarvis_bud.core import BudManager, LocalOllamaClient
 
 
 class JarvisBud:
@@ -27,23 +25,22 @@ class JarvisBud:
         self.buds_path = buds_path
         
         # Hardware
-        self.display: Optional[ST7789Display] = None
-        self.audio: Optional[AudioCodec] = None
+        self.whisplay: Optional[WhisplayIO] = None
         self.battery: Optional[Battery] = None
-        self.buttons: Optional[ButtonHandler] = None
         
         # UI
         self.renderer: Optional[FrameRenderer] = None
         self.animator = WaveformAnimator()
         
-        # AI
-        self.ai_router: Optional[AIRouter] = None
+        # AI and personalities
+        self.bud_manager: Optional[BudManager] = None
         
         # State
         self.is_listening = False
         self.is_running = True
-        self.current_bud = None
+        self.current_bud = "Fogo"
         self.connectivity_mode = "offline"
+        self._last_prompt = ""
 
     def run_first_boot_if_needed(self) -> bool:
         """Run first-boot wizard if config doesn't exist.
@@ -78,24 +75,20 @@ class JarvisBud:
         print("\n🔧 Initializing hardware...\n")
         
         try:
-            # Initialize Display
-            self.display = ST7789Display()
-            if not self.display.init():
-                print("⚠️  Display initialization failed, continuing...")
-            
-            # Initialize Audio
-            self.audio = AudioCodec()
-            if not self.audio.init():
-                print("⚠️  Audio initialization failed, continuing...")
+            self.whisplay = WhisplayIO()
+            if not self.whisplay.initialize():
+                print("❌ Whisplay initialization failed")
+                return False
             
             # Initialize Battery
             self.battery = Battery()
             self.battery.connect()
             
             # Initialize Buttons
-            self.buttons = ButtonHandler()
-            self.buttons.on_button_a(self._on_button_a_pressed)
-            self.buttons.on_button_b(self._on_button_b_pressed)
+            self.whisplay.set_callbacks(
+                on_button_a=self._on_button_a_pressed,
+                on_button_b=self._on_button_b_pressed,
+            )
             
             # Initialize UI Renderer
             self.renderer = FrameRenderer()
@@ -108,39 +101,43 @@ class JarvisBud:
             return False
 
     def initialize_ai(self) -> bool:
-        """Initialize AI router with configured backends.
-        
-        Returns:
-            True if at least one AI route available
-        """
-        print("\n🧠 Initializing AI router...\n")
-        
+        """Initialize local-first AI routing with OpenRouter failover."""
+        print("\n🧠 Initializing Fogo routing stack...\n")
+
         try:
-            ollama_url = self.config_manager.get_ollama_url()
-            openrouter_key = self.config_manager.get_openrouter_key()
-            
-            self.ai_router = AIRouter(
-                ollama_url=ollama_url,
-                openrouter_key=openrouter_key
+            configured_ollama = self.config_manager.get_ollama_url()
+            candidates = ["127.0.0.1", "pironman", "naspi", "192.168.1.100", "192.168.1.101", "192.168.1.110"]
+            if configured_ollama and configured_ollama.startswith("http://"):
+                host = configured_ollama.replace("http://", "").split(":")[0]
+                if host not in candidates:
+                    candidates.insert(0, host)
+
+            ollama = LocalOllamaClient(candidate_hosts=candidates, max_ping_ms=100.0)
+            endpoint = ollama.scan()
+
+            self.bud_manager = BudManager(
+                ollama=ollama,
+                openrouter_key=self.config_manager.get_openrouter_key(),
             )
-            
-            route_info = self.ai_router.get_route_info()
-            
-            if route_info["local_available"]:
-                print(f"✅ Local Ollama available: {route_info['local_model']}")
+
+            preferred = self.config_manager.get("bud.id", "fogo")
+            self.bud_manager.set_active_bud(preferred if preferred in self.bud_manager.buds else "fogo")
+            self.current_bud = self.bud_manager.active_profile.name
+
+            if endpoint:
                 self.connectivity_mode = "local"
-            
-            if route_info["cloud_available"]:
-                print(f"✅ OpenRouter available: {route_info['cloud_model']}")
+                print(f"✅ Ollama endpoint: {endpoint.base_url} ({endpoint.latency_ms:.1f}ms)")
+                print(f"✅ Active local model: {ollama.model or 'llama3/mistral'}")
+            elif self.bud_manager.openrouter and self.bud_manager.openrouter.is_available:
                 self.connectivity_mode = "cloud"
-            
-            if not route_info["local_available"] and not route_info["cloud_available"]:
-                print("⚠️  No AI routes available. Running in demo mode.")
+                print("✅ Local offline, using OpenRouter failover")
+            else:
                 self.connectivity_mode = "offline"
-            
+                print("⚠️ No available AI route right now")
+
             print()
             return True
-            
+
         except Exception as e:
             print(f"❌ AI initialization error: {e}")
             self.connectivity_mode = "offline"
@@ -157,13 +154,19 @@ class JarvisBud:
     def _on_button_b_pressed(self):
         """Handle Button B press (Cycle Personalities)."""
         print("🔘 Button B pressed (Cycle Bud)")
-        # This would cycle through available personalities
-        # For now, just a placeholder
-        print("💫 Cycle Buds feature coming soon!")
+        if not self.bud_manager:
+            return
+        profile = self.bud_manager.cycle_bud()
+        self.current_bud = profile.name
+        self.config_manager.set("bud.id", profile.bud_id)
+        self.config_manager.set("bud.name", profile.name)
+        self.config_manager.set("bud.system_prompt", profile.system_prompt)
+        self.config_manager.save()
+        print(f"💫 Active Bud: {profile.name} {profile.emoji}")
 
     async def _listen_and_respond(self):
         """Listen for audio input and generate AI response."""
-        if not self.display or not self.audio:
+        if not self.whisplay:
             return
         
         try:
@@ -171,20 +174,19 @@ class JarvisBud:
             if self.renderer:
                 animation_frame = self.animator.get_frame("listening")
                 self.renderer.render_status_hud(
-                    self.display,
+                    self.whisplay.display,
                     bud_name=self.current_bud or "Jarvis-Bud",
                     battery_level=self.battery.get_battery_percentage() if self.battery else 100,
                     is_charging=self.battery.is_charging() if self.battery else False,
                     connectivity_status=self.connectivity_mode,
-                    animation_frame=animation_frame
+                    animation_frame=animation_frame,
+                    activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
                 )
             
             print("🎙️  Listening... (say something or press Button A to stop)")
             
-            # Record audio for 5 seconds
-            self.audio.start_recording()
-            await asyncio.sleep(5)
-            audio_data = self.audio.stop_recording()
+            # Record audio for 4 seconds
+            audio_data = await self.whisplay.capture_audio(seconds=4.0)
             
             if not audio_data:
                 print("❌ No audio captured")
@@ -195,29 +197,33 @@ class JarvisBud:
             if self.renderer:
                 animation_frame = self.animator.get_frame("thinking")
                 self.renderer.render_status_hud(
-                    self.display,
+                    self.whisplay.display,
                     bud_name=self.current_bud or "Jarvis-Bud",
                     battery_level=self.battery.get_battery_percentage() if self.battery else 100,
                     is_charging=self.battery.is_charging() if self.battery else False,
                     connectivity_status=self.connectivity_mode,
-                    animation_frame=animation_frame
+                    animation_frame=animation_frame,
+                    activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
                 )
             
             print("🤔 Thinking...")
             
-            # Generate response using AI router
-            if self.ai_router:
-                system_prompt = self.config_manager.get_bud_system_prompt()
-                user_prompt = "I recorded some audio, please generate a helpful response"
-                
-                response = self.ai_router.generate(
-                    user_prompt,
-                    system_prompt=system_prompt,
-                    prefer="auto"
-                )
-                
+            # Generate response using Bud manager
+            if self.bud_manager:
+                self._last_prompt = "I recorded some audio, please generate a helpful response"
+                response = self.bud_manager.generate_response(self._last_prompt)
+
+                local_online = self.bud_manager.ollama.is_available
+                cloud_online = bool(self.bud_manager.openrouter and self.bud_manager.openrouter.is_available)
+                if local_online:
+                    self.connectivity_mode = "local"
+                elif cloud_online:
+                    self.connectivity_mode = "cloud"
+                else:
+                    self.connectivity_mode = "offline"
+
                 if response:
-                    print(f"💬 Response: {response[:100]}...")
+                    print(f"💬 Response: {response[:140]}...")
                 else:
                     print("❌ No response generated")
             
@@ -233,26 +239,31 @@ class JarvisBud:
         
         while self.is_running:
             try:
-                if self.display and self.renderer:
+                if self.whisplay and self.renderer:
+                    if not self.whisplay:
+                        await asyncio.sleep(frame_interval)
+                        continue
+
                     # Get current state
                     battery_pct = self.battery.get_battery_percentage() if self.battery else 100
                     is_charging = self.battery.is_charging() if self.battery else False
                     
                     # Get animation frame based on state
                     if self.is_listening:
-                        audio_level = self.audio.get_audio_level() if self.audio else 0.5
+                        audio_level = self.whisplay.audio.get_audio_level() if self.whisplay else 0.5
                         animation_frame = self.animator.get_frame("listening", audio_level=audio_level)
                     else:
                         animation_frame = self.animator.get_frame("idle")
                     
                     # Render HUD
                     self.renderer.render_status_hud(
-                        self.display,
+                        self.whisplay.display,
                         bud_name=self.current_bud or "Jarvis-Bud 🤖",
                         battery_level=battery_pct,
                         is_charging=is_charging,
                         connectivity_status=self.connectivity_mode,
-                        animation_frame=animation_frame
+                        animation_frame=animation_frame,
+                        activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
                     )
                 
                 await asyncio.sleep(frame_interval)
@@ -271,9 +282,9 @@ class JarvisBud:
                     # Warn if battery is critical
                     if self.battery.is_low_battery(threshold=10):
                         print("🚨 CRITICAL: Battery very low!")
-                        if self.renderer and self.display:
+                        if self.renderer and self.whisplay:
                             self.renderer.render_message(
-                                self.display,
+                                self.whisplay.display,
                                 "Battery Critical",
                                 "Shutting down soon...",
                                 emoji="🪫",
@@ -314,11 +325,8 @@ class JarvisBud:
         """Clean up resources."""
         print("\n🧹 Cleaning up...\n")
         
-        if self.buttons:
-            self.buttons.cleanup()
-        
-        if self.audio:
-            self.audio.cleanup()
+        if self.whisplay:
+            self.whisplay.cleanup()
         
         if self.battery:
             self.battery.disconnect()

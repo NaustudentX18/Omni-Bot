@@ -45,6 +45,8 @@ class TerminalDarkTheme:
     
     # Personality accent overrides
     PERSONALITY_COLORS = {
+        "fogo": NEON_GREEN,
+        "mango": NEON_YELLOW,
         "tech-support": NEON_GREEN,
         "trail-runner": NEON_BLUE,
         "snarky-hacker": NEON_MAGENTA,
