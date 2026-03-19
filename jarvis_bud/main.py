@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import time
 from typing import Optional
 
 from jarvis_bud.config import ConfigManager
@@ -41,6 +42,22 @@ class JarvisBud:
         self.current_bud = "Fogo"
         self.connectivity_mode = "offline"
         self._last_prompt = ""
+        self._battery_snapshot = {"percentage": 100, "charging": False}
+        self._last_battery_refresh = 0.0
+        self._battery_refresh_interval_s = 2.0
+
+    def _refresh_battery_snapshot(self, force: bool = False) -> dict:
+        """Refresh cached battery status with light rate limiting."""
+        now = time.monotonic()
+        should_refresh = force or (now - self._last_battery_refresh) >= self._battery_refresh_interval_s
+
+        if should_refresh and self.battery:
+            status = self.battery.get_status()
+            self._battery_snapshot["percentage"] = int(status.get("percentage", 100))
+            self._battery_snapshot["charging"] = bool(status.get("charging", False))
+            self._last_battery_refresh = now
+
+        return self._battery_snapshot
 
     def run_first_boot_if_needed(self) -> bool:
         """Run first-boot wizard if config doesn't exist.
@@ -172,12 +189,13 @@ class JarvisBud:
         try:
             # Show listening animation
             if self.renderer:
+                battery_snapshot = self._refresh_battery_snapshot(force=True)
                 animation_frame = self.animator.get_frame("listening")
                 self.renderer.render_status_hud(
                     self.whisplay.display,
                     bud_name=self.current_bud or "Jarvis-Bud",
-                    battery_level=self.battery.get_battery_percentage() if self.battery else 100,
-                    is_charging=self.battery.is_charging() if self.battery else False,
+                    battery_level=battery_snapshot["percentage"],
+                    is_charging=battery_snapshot["charging"],
                     connectivity_status=self.connectivity_mode,
                     animation_frame=animation_frame,
                     activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
@@ -195,12 +213,13 @@ class JarvisBud:
             
             # Show thinking animation
             if self.renderer:
+                battery_snapshot = self._refresh_battery_snapshot()
                 animation_frame = self.animator.get_frame("thinking")
                 self.renderer.render_status_hud(
                     self.whisplay.display,
                     bud_name=self.current_bud or "Jarvis-Bud",
-                    battery_level=self.battery.get_battery_percentage() if self.battery else 100,
-                    is_charging=self.battery.is_charging() if self.battery else False,
+                    battery_level=battery_snapshot["percentage"],
+                    is_charging=battery_snapshot["charging"],
                     connectivity_status=self.connectivity_mode,
                     animation_frame=animation_frame,
                     activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
@@ -240,13 +259,8 @@ class JarvisBud:
         while self.is_running:
             try:
                 if self.whisplay and self.renderer:
-                    if not self.whisplay:
-                        await asyncio.sleep(frame_interval)
-                        continue
-
                     # Get current state
-                    battery_pct = self.battery.get_battery_percentage() if self.battery else 100
-                    is_charging = self.battery.is_charging() if self.battery else False
+                    battery_snapshot = self._refresh_battery_snapshot()
                     
                     # Get animation frame based on state
                     if self.is_listening:
@@ -259,8 +273,8 @@ class JarvisBud:
                     self.renderer.render_status_hud(
                         self.whisplay.display,
                         bud_name=self.current_bud or "Jarvis-Bud 🤖",
-                        battery_level=battery_pct,
-                        is_charging=is_charging,
+                        battery_level=battery_snapshot["percentage"],
+                        is_charging=battery_snapshot["charging"],
                         connectivity_status=self.connectivity_mode,
                         animation_frame=animation_frame,
                         activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
@@ -277,10 +291,10 @@ class JarvisBud:
         while self.is_running:
             try:
                 if self.battery:
-                    status = self.battery.get_status()
+                    status = self._refresh_battery_snapshot(force=True)
                     
                     # Warn if battery is critical
-                    if self.battery.is_low_battery(threshold=10):
+                    if status["percentage"] < 10:
                         print("🚨 CRITICAL: Battery very low!")
                         if self.renderer and self.whisplay:
                             self.renderer.render_message(

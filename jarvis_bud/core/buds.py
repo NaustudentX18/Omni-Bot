@@ -125,7 +125,11 @@ class BudManager:
         profile = self.active_profile
         prompt = f"User request: {user_prompt}"
 
-        if self.ollama.scan():
+        # Only rescan when endpoint is unknown; avoid repeated LAN pings per prompt.
+        if not self.ollama.is_available:
+            self.ollama.scan()
+
+        if self.ollama.is_available:
             reply = self.ollama.generate(prompt=prompt, system_prompt=profile.system_prompt)
             if reply:
                 return EmojiTextEngine.apply(reply)

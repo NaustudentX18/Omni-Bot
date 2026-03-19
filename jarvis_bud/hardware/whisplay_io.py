@@ -39,6 +39,9 @@ class WhisplayIO:
 
     async def capture_audio(self, seconds: float = 4.0) -> bytes:
         """Capture microphone audio into raw bytes."""
+        if not self.audio.is_initialized:
+            return b""
+
         chunks = []
         loops = int(max(1, (self.audio.sample_rate / self.audio.chunk_size) * seconds))
         self.audio.start_recording()
