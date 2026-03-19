@@ -26,7 +26,7 @@ class OllamaEndpoint:
 class LocalOllamaClient:
     """Talk to local Ollama and auto-discover fast LAN hosts."""
 
-    PREFERRED_MODEL_PREFIXES = ("llama3", "mistral")
+    PREFERRED_MODEL_PREFIXES = ("gemma", "phi-3.5", "tinyllama", "llama3", "mistral")
 
     def __init__(
         self,
@@ -144,7 +144,7 @@ class LocalOllamaClient:
             return None
 
         payload = {
-            "model": self.model or "llama3",
+            "model": self.model or "gemma2:2b-instruct-q4_K_M",
             "prompt": prompt,
             "stream": False,
             "temperature": 0.7,

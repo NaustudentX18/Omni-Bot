@@ -21,6 +21,22 @@
 - ✅ **60fps Animation** - Responsive GUI powered by asyncio event loop
 - ✅ **Battery Management** - Real-time PiSugar 3 monitoring with critical alerts
 - ✅ **GPIO Buttons** - Button A for Listen/Wake, Button B to Cycle Personalities
+- ✅ **Safety Core** - SHA-256 chained audit log + high-risk action confirmation
+- ✅ **Emergency Stop** - Long-press Button B terminates tracked tool process groups
+- ✅ **Export Pipeline** - `python main.py export` creates single-file HTML + encrypted USB package
+- ✅ **Cyberpunk Runtime Profiles** - `stealth` / `aggressive` / `cinematic` vibe levels
+- ✅ **God Mode + Legendary Demo** - instant simulation mode for presentations
+
+### 🎙️ Full voice command list
+
+- `status`
+- `stop`
+- `export`
+- `target add X`
+- `crack wifi`
+- `full auto`
+- `god mode`
+- `make legendary`
 
 ---
 

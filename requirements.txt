@@ -1,6 +1,10 @@
 Pillow>=12.1.1
 requests>=2.32.5
 aiohttp>=3.13.3
+pyzipper>=0.3.6
+llama-cpp-python>=0.3.16
+faiss-cpu>=1.12.0
+sentence-transformers>=5.1.2
 RPi.GPIO>=0.7.1; platform_machine == "armv6l" or platform_machine == "armv7l" or platform_machine == "armv8l" or platform_machine == "aarch64"
 pyalsaaudio>=0.11.0; platform_machine == "armv6l" or platform_machine == "armv7l" or platform_machine == "armv8l" or platform_machine == "aarch64"
 pyaudio>=0.2.14; platform_machine == "armv6l" or platform_machine == "armv7l" or platform_machine == "armv8l" or platform_machine == "aarch64"

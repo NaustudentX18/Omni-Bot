@@ -30,6 +30,62 @@ python3 -m jarvis_bud.main
 
 ---
 
+## ⚡ Final Deployment Mode (Pi Zero 2 W)
+
+This branch ships a hardened offline deployment stack with:
+
+- 🔐 Tamper-evident audit chain (`logs/audit_chain.jsonl`)
+- 🛑 Long-press **Button B** emergency stop (kills tracked process groups)
+- ⚠️ High-risk action gating (risk >= 6 requires explicit button confirmation)
+- 🧠 Offline brain planner + reflection loop with GGUF model fallback chain
+- 🧵 Tiny memory layer (FAISS/MiniLM optional, JSONL fallback always available)
+- 📦 `python main.py export` for single-file HTML + encrypted USB package export
+- 🎛️ Runtime `config/config.ini` control for `vibe_level` + `god_mode` + `dry_run`
+
+### Voice command list (offline parser)
+
+- `status`
+- `stop`
+- `export`
+- `target add <X>`
+- `crack wifi`
+- `full auto`
+- `god mode`
+- `make legendary`
+
+### Vibe levels
+
+Set in `config/config.ini`:
+
+```ini
+[runtime]
+vibe_level = stealth     ; stealth | aggressive | cinematic
+god_mode = false
+dry_run = true
+```
+
+### God mode
+
+`god mode` switches to simulation-first flow for demos:
+
+- fake rapid results
+- matrix/glitch OLED visuals
+- safety-preserving no-live-aggression defaults
+
+### Physical hardware checklist
+
+- [ ] Raspberry Pi Zero 2 W boots and reaches shell
+- [ ] Whisplay OLED active + matrix boot animation visible
+- [ ] Button A triggers listen cycle
+- [ ] Button B short press cycles Bud personality
+- [ ] Button B long press performs emergency stop
+- [ ] PiSugar battery values visible in HUD
+- [ ] `python main.py export` writes encrypted package to mounted USB
+
+**Built 2026 by madman + Cursor.**
+
+---
+
 ## 🏗️ Project Structure
 
 ```
