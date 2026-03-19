@@ -3,7 +3,6 @@
 import json
 import os
 from typing import Any, Dict, Optional
-from pathlib import Path
 
 
 class ConfigManager:
@@ -27,15 +26,17 @@ class ConfigManager:
         """
         try:
             if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path, "r", encoding="utf-8") as f:
                     self._config = json.load(f)
                 print(f"📂 Config loaded: {self.config_path}")
                 return True
             else:
                 print(f"ℹ️  No config found at {self.config_path}")
+                self._config = {}
                 return False
         except Exception as e:
             print(f"❌ Error loading config: {e}")
+            self._config = {}
             return False
 
     def save(self) -> bool:
@@ -46,7 +47,7 @@ class ConfigManager:
         """
         try:
             os.makedirs(os.path.dirname(self.config_path) or ".", exist_ok=True)
-            with open(self.config_path, 'w') as f:
+            with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2)
             print(f"💾 Config saved: {self.config_path}")
             return True
@@ -85,7 +86,7 @@ class ConfigManager:
         config = self._config
         
         for k in keys[:-1]:
-            if k not in config:
+            if k not in config or not isinstance(config.get(k), dict):
                 config[k] = {}
             config = config[k]
         
@@ -129,8 +130,8 @@ class ConfigManager:
         Returns:
             True if config exists and has required fields
         """
-        required_fields = ["bud", "hardware"]
-        return all(self.get(field) is not None for field in required_fields)
+        required_fields = ["bud.id", "bud.name", "bud.system_prompt"]
+        return all(bool(self.get(field)) for field in required_fields)
 
     def get_display_dict(self) -> Dict:
         """Get a clean config dict suitable for display (removes sensitive data).
@@ -141,9 +142,13 @@ class ConfigManager:
         display_config = json.loads(json.dumps(self._config))
         
         # Redact API keys
-        if "openrouter" in display_config and "api_key" in display_config["openrouter"]:
-            api_key = display_config["openrouter"]["api_key"]
-            display_config["openrouter"]["api_key"] = api_key[:8] + "..." if len(api_key) > 8 else "***"
+        openrouter_cfg = display_config.get("openrouter")
+        if isinstance(openrouter_cfg, dict) and "api_key" in openrouter_cfg:
+            api_key = openrouter_cfg.get("api_key")
+            if isinstance(api_key, str) and api_key:
+                openrouter_cfg["api_key"] = api_key[:8] + "..." if len(api_key) > 8 else "***"
+            else:
+                openrouter_cfg["api_key"] = "***"
         
         return display_config
 

@@ -1,7 +1,11 @@
 """ST7789 LCD Display Driver (240x280) for Jarvis-Bud."""
 
-import os
-from PIL import Image, ImageDraw, ImageFont
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:  # pragma: no cover - depends on host environment
+    Image = None  # type: ignore[assignment]
+    ImageDraw = None  # type: ignore[assignment]
+    ImageFont = None  # type: ignore[assignment]
 
 
 class ST7789Display:
@@ -19,8 +23,9 @@ class ST7789Display:
         """
         self.width = width
         self.height = height
-        self.image = Image.new("RGB", (width, height), color=(0, 0, 0))
-        self.draw = ImageDraw.Draw(self.image)
+        self._pillow_available = bool(Image and ImageDraw and ImageFont)
+        self.image = Image.new("RGB", (width, height), color=(0, 0, 0)) if self._pillow_available else None
+        self.draw = ImageDraw.Draw(self.image) if self._pillow_available and self.image else None
         self.is_initialized = False
         
         # Try to load a monospace font
@@ -28,7 +33,8 @@ class ST7789Display:
         self.font_md = None
         self.font_sm = None
         
-        self._load_fonts()
+        if self._pillow_available:
+            self._load_fonts()
 
     def _load_fonts(self):
         """Load system fonts for text rendering."""
@@ -50,6 +56,10 @@ class ST7789Display:
             True if successful, False otherwise
         """
         try:
+            if not self._pillow_available:
+                print("⚠️  Pillow is not installed. LCD rendering disabled.")
+                self.is_initialized = False
+                return False
             # In a real implementation, this would initialize SPI and GPIO
             # For testing, we'll check if we can access mock hardware
             self.is_initialized = True
@@ -64,6 +74,8 @@ class ST7789Display:
         Args:
             color: RGB tuple (default black)
         """
+        if not self._pillow_available:
+            return
         self.image = Image.new("RGB", (self.width, self.height), color=color)
         self.draw = ImageDraw.Draw(self.image)
 
@@ -78,6 +90,8 @@ class ST7789Display:
             font: Font size ("sm", "md", "lg")
             center: Center text horizontally
         """
+        if not self._pillow_available or not self.draw:
+            return
         font_map = {"sm": self.font_sm, "md": self.font_md, "lg": self.font_lg}
         selected_font = font_map.get(font, self.font_md)
         
@@ -96,6 +110,8 @@ class ST7789Display:
             color: RGB tuple (outline)
             fill: RGB tuple for fill (optional)
         """
+        if not self._pillow_available or not self.draw:
+            return
         self.draw.rectangle([x1, y1, x2, y2], outline=color, fill=fill)
 
     def draw_line(self, x1, y1, x2, y2, color=(0, 255, 0), width=1):
@@ -106,6 +122,8 @@ class ST7789Display:
             color: RGB tuple
             width: Line width
         """
+        if not self._pillow_available or not self.draw:
+            return
         self.draw.line([(x1, y1), (x2, y2)], fill=color, width=width)
 
     def draw_waveform(self, samples, x=10, y=100, height=80, color=(0, 255, 0)):
@@ -139,7 +157,7 @@ class ST7789Display:
         
         In a real implementation, this would transfer the PIL image to the LCD.
         """
-        if not self.is_initialized:
+        if not self._pillow_available or not self.is_initialized:
             return False
         
         try:
@@ -161,6 +179,9 @@ class ST7789Display:
             filename: Path to save the PNG
         """
         try:
+            if not self._pillow_available or not self.image:
+                print("⚠️  Pillow is not installed; screenshot unavailable.")
+                return False
             self.image.save(filename)
             print(f"📸 Screenshot saved: {filename}")
             return True

@@ -26,6 +26,12 @@ class AudioCodec:
         self._device = None
         self._audio_data = []
         self._backend = None
+        self._warned_uninitialized_capture = False
+
+    @property
+    def is_initialized(self) -> bool:
+        """Whether a usable audio backend is active."""
+        return self._backend is not None
 
     def init(self) -> bool:
         """Initialize the audio codec hardware.
@@ -84,6 +90,8 @@ class AudioCodec:
 
     def start_recording(self):
         """Start recording audio."""
+        if not self.is_initialized:
+            return
         self.is_recording = True
         self._audio_data = []
 
@@ -93,6 +101,8 @@ class AudioCodec:
         Returns:
             Raw audio bytes
         """
+        if not self.is_initialized:
+            return b""
         self.is_recording = False
         return b"".join(self._audio_data)
 
@@ -102,6 +112,12 @@ class AudioCodec:
         Returns:
             Audio chunk bytes or None if no data available
         """
+        if not self.is_initialized:
+            if not self._warned_uninitialized_capture:
+                print("⚠️  Audio backend is not initialized; skipping capture.")
+                self._warned_uninitialized_capture = True
+            return None
+
         try:
             if self._backend == "alsaaudio":
                 length, data = self._alsa_capture.read()
