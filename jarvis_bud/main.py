@@ -14,7 +14,7 @@ from jarvis_bud.ai import EdgeBrain
 from jarvis_bud.audit import AuditLogger
 from jarvis_bud.config import ConfigManager
 from jarvis_bud.core import BudManager, LocalOllamaClient
-from jarvis_bud.hardware import Battery, SpeechSynth, WhisplayIO
+from jarvis_bud.hardware import Battery, SpeechSynth, SpeechToText, WhisplayIO
 from jarvis_bud.reporting import ReportBuilder, export_encrypted_zip
 from jarvis_bud.tools import ToolRunner
 from jarvis_bud.ui import FrameRenderer, WaveformAnimator
@@ -48,6 +48,7 @@ class JarvisBud:
         self.whisplay: Optional[WhisplayIO] = None
         self.battery: Optional[Battery] = None
         self.tts = SpeechSynth()
+        self.stt = SpeechToText()
 
         # UI
         self.renderer: Optional[FrameRenderer] = None
@@ -248,10 +249,17 @@ class JarvisBud:
         self.audit.log_event("confirm.result", {"tool": tool_name, "risk": risk, "approved": False, "mode": "timeout"})
         return False
 
-    def _transcribe_audio(self, _audio_data: bytes) -> str:
-        """Placeholder STT path: env override for fully offline testing."""
+    def _transcribe_audio(self, audio_data: bytes) -> str:
+        """Transcribe audio via offline faster-whisper; env override for testing."""
         scripted = os.environ.get("NXTGENAI_FAKE_STT", "").strip()
-        return scripted or "status"
+        if scripted:
+            return scripted
+        if self.stt.is_available and audio_data:
+            text = self.stt.transcribe_bytes(audio_data, sample_rate=16000)
+            if text:
+                self.audit.log_event("stt.result", {"text": text[:200], "bytes": len(audio_data)})
+                return text
+        return "status"
 
     def _execute_voice_intent(self, intent: VoiceIntent) -> str:
         self._last_risk = intent.risk

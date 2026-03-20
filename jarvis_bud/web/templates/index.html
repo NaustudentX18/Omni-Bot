@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NXTGENAI // Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet" crossorigin="anonymous">
+<style>
+:root {
+  --bg: #0a0a14;
+  --surface: #12121f;
+  --accent: #00f7ff;
+  --neon-green: #00ff64;
+  --neon-magenta: #ff00ff;
+  --text: #d2dce6;
+  --muted: #5a6a7a;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', monospace;
+  margin: 0;
+  overflow-x: hidden;
+}
+#matrix-canvas {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 0; opacity: 0.08; pointer-events: none;
+}
+.main-wrap { position: relative; z-index: 1; }
+.navbar {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--accent);
+}
+.navbar-brand {
+  color: var(--accent) !important;
+  text-shadow: 0 0 10px var(--accent);
+  font-weight: bold;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid #1e2a3a;
+  border-radius: 8px;
+}
+.card-header {
+  background: rgba(0,247,255,0.05);
+  border-bottom: 1px solid #1e2a3a;
+  color: var(--accent);
+  font-weight: bold;
+}
+.neon-green { color: var(--neon-green); text-shadow: 0 0 6px var(--neon-green); }
+.neon-cyan { color: var(--accent); text-shadow: 0 0 6px var(--accent); }
+.neon-magenta { color: var(--neon-magenta); text-shadow: 0 0 6px var(--neon-magenta); }
+.badge-cyber {
+  background: rgba(0,255,100,0.15);
+  color: var(--neon-green);
+  border: 1px solid var(--neon-green);
+}
+.badge-offline {
+  background: rgba(255,0,100,0.15);
+  color: #ff4d6a;
+  border: 1px solid #ff4d6a;
+}
+.btn-emergency {
+  background: #ff1744;
+  color: #fff;
+  border: none;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.btn-emergency:hover { background: #d50000; color: #fff; }
+.audit-table { font-size: 0.82rem; }
+.audit-table td, .audit-table th {
+  border-color: #1e2a3a;
+  color: var(--text);
+  padding: 4px 8px;
+}
+.audit-table th { color: var(--accent); background: rgba(0,247,255,0.03); }
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+}
+.form-control, .form-select {
+  background: var(--bg);
+  color: var(--text);
+  border-color: #1e2a3a;
+}
+.form-control:focus, .form-select:focus {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(0,247,255,0.3);
+}
+</style>
+</head>
+<body>
+<canvas id="matrix-canvas"></canvas>
+<div class="main-wrap">
+  <nav class="navbar navbar-dark px-3">
+    <span class="navbar-brand">NXTGENAI // DASHBOARD</span>
+    <span class="text-muted small" id="clock"></span>
+  </nav>
+
+  <div class="container-fluid py-3">
+    <div class="row g-3">
+      <!-- Status Cards -->
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-header">STATUS</div>
+          <div class="card-body text-center">
+            <div id="status-bud" class="stat-value neon-green">--</div>
+            <small class="text-muted">Active Bud</small>
+            <hr style="border-color:#1e2a3a">
+            <div id="status-connectivity" class="neon-cyan">--</div>
+            <small class="text-muted">Connectivity</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-header">BATTERY</div>
+          <div class="card-body text-center">
+            <div id="status-battery" class="stat-value neon-green">--%</div>
+            <small id="status-charging" class="text-muted">Unknown</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-header">SYSTEM</div>
+          <div class="card-body text-center">
+            <div id="status-uptime" class="stat-value neon-cyan">--</div>
+            <small class="text-muted">Uptime</small>
+            <hr style="border-color:#1e2a3a">
+            <span id="status-ram" class="text-muted">RAM: --</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-header">CONTROLS</div>
+          <div class="card-body text-center d-flex flex-column gap-2 justify-content-center">
+            <span id="status-flags" class="mb-2"></span>
+            <button class="btn btn-emergency w-100" onclick="emergencyStop()">
+              🛑 EMERGENCY STOP
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config + Audit row -->
+    <div class="row g-3 mt-2">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">CONFIGURATION</div>
+          <div class="card-body">
+            <pre id="config-view" style="color:var(--neon-green);font-size:0.85rem;max-height:300px;overflow-y:auto">Loading...</pre>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">AUDIT LOG <small class="text-muted">(last 50)</small></div>
+          <div class="card-body p-0" style="max-height:340px;overflow-y:auto">
+            <table class="table table-dark table-sm audit-table mb-0">
+              <thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>
+              <tbody id="audit-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reports -->
+    <div class="row g-3 mt-2">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">REPORTS</div>
+          <div class="card-body" id="reports-list">
+            <span class="text-muted">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Matrix rain background
+(function() {
+  const c = document.getElementById('matrix-canvas');
+  const ctx = c.getContext('2d');
+  function resize() { c.width = window.innerWidth; c.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  const chars = '01アイウエオカキクケコ#@$%'.split('');
+  const fontSize = 14;
+  let columns = Math.floor(c.width / fontSize);
+  let drops = Array(columns).fill(1);
+  function draw() {
+    ctx.fillStyle = 'rgba(10,10,20,0.05)';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#0f4';
+    ctx.font = fontSize + 'px monospace';
+    for (let i = 0; i < drops.length; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * fontSize, drops[i] * fontSize);
+      if (drops[i] * fontSize > c.height && Math.random() > 0.975)
+        drops[i] = 0;
+      drops[i]++;
+    }
+    columns = Math.floor(c.width / fontSize);
+    while (drops.length < columns) drops.push(1);
+  }
+  setInterval(draw, 50);
+})();
+
+// Clock
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// Formatters
+function fmtUptime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+}
+function fmtTs(ts) {
+  return new Date(ts * 1000).toLocaleTimeString();
+}
+
+// Polling
+function poll() {
+  fetch('/api/status').then(r => r.json()).then(d => {
+    document.getElementById('status-bud').textContent = d.bud || 'Offline';
+    document.getElementById('status-connectivity').textContent = (d.connectivity || 'unknown').toUpperCase();
+    document.getElementById('status-battery').textContent = (d.battery_pct ?? '--') + '%';
+    document.getElementById('status-charging').textContent = d.battery_charging ? '⚡ Charging' : '🔋 On Battery';
+    document.getElementById('status-uptime').textContent = fmtUptime(d.uptime_s || 0);
+    let flags = '';
+    if (d.god_mode) flags += '<span class="badge badge-cyber me-1">GOD MODE</span>';
+    if (d.dry_run) flags += '<span class="badge badge-cyber me-1">DRY-RUN</span>';
+    if (d.stt_available) flags += '<span class="badge badge-cyber me-1">STT</span>';
+    flags += '<span class="badge badge-cyber">' + (d.tts_backend || 'none').toUpperCase() + '</span>';
+    document.getElementById('status-flags').innerHTML = flags;
+  }).catch(() => {});
+
+  fetch('/api/ram').then(r => r.json()).then(d => {
+    document.getElementById('status-ram').textContent = 'RAM: ' + d.peak_rss_mb + ' MB peak';
+  }).catch(() => {});
+
+  fetch('/api/config').then(r => r.json()).then(d => {
+    document.getElementById('config-view').textContent = JSON.stringify(d, null, 2);
+  }).catch(() => {});
+
+  fetch('/api/audit').then(r => r.json()).then(events => {
+    const tb = document.getElementById('audit-body');
+    tb.innerHTML = '';
+    events.slice(-50).reverse().forEach(e => {
+      const tr = document.createElement('tr');
+      const detail = JSON.stringify(e.payload || {}).substring(0, 80);
+      tr.innerHTML = '<td style="white-space:nowrap">' + fmtTs(e.ts) + '</td><td>' +
+        (e.event || '') + '</td><td class="text-muted">' + detail + '</td>';
+      tb.appendChild(tr);
+    });
+  }).catch(() => {});
+
+  fetch('/api/reports').then(r => r.json()).then(files => {
+    const el = document.getElementById('reports-list');
+    if (!files.length) { el.innerHTML = '<span class="text-muted">No reports yet.</span>'; return; }
+    el.innerHTML = files.map(f =>
+      '<a href="/reports/' + f.name + '" class="neon-cyan me-3">' + f.name + '</a> ' +
+      '<small class="text-muted">(' + Math.round(f.size / 1024) + ' KB)</small><br>'
+    ).join('');
+  }).catch(() => {});
+}
+poll();
+setInterval(poll, 3000);
+
+function emergencyStop() {
+  if (!confirm('Execute emergency stop? All tracked processes will be killed.')) return;
+  fetch('/api/emergency-stop', {method:'POST'}).then(r => r.json()).then(d => {
+    alert(d.message || 'Done');
+    poll();
+  });
+}
+</script>
+</body>
+</html>
