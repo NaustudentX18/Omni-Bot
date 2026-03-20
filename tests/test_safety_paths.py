@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from jarvis_bud.audit import AuditLogger
 from jarvis_bud.hardware.tts import SpeechSynth
 from jarvis_bud.reporting import _find_usb_mount
+from jarvis_bud.reporting import ReportBuilder, TimelineEvent
 from jarvis_bud.tools import ToolRunner
 from jarvis_bud.voice import VoiceCommandParser
 
@@ -121,3 +122,22 @@ def test_find_usb_mount_prefers_nested_device_directory():
         mount = _find_usb_mount([media_root])
 
         assert mount == device_dir
+
+
+def test_report_builder_escapes_event_and_detail_html():
+    builder = ReportBuilder()
+    malicious_event = "brain.<img src=x onerror=alert(1)>"
+    payload = {"prompt_preview": "<img src=x onerror=alert(1)>", "risk": 7}
+    builder.events.append(
+        TimelineEvent(
+            ts=1.0,
+            event=malicious_event,
+            detail=json.dumps(payload, ensure_ascii=True),
+            severity=7,
+        )
+    )
+
+    html_report = builder.to_html()
+
+    assert "<img src=x onerror=alert(1)>" not in html_report
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html_report
