@@ -42,9 +42,12 @@ class SpeechSynth:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
+                if piper_proc.stdin:
+                    piper_proc.stdin.write(message.encode("utf-8"))
+                    piper_proc.stdin.close()
+                piper_proc.wait(timeout=20)
                 if piper_proc.stdout:
                     piper_proc.stdout.close()
-                piper_proc.communicate(input=message.encode("utf-8"), timeout=20)
                 aplay_proc.wait(timeout=20)
                 return piper_proc.returncode == 0 and aplay_proc.returncode == 0
             except Exception:
