@@ -7,8 +7,10 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from jarvis_bud.audit import AuditLogger
+from jarvis_bud.hardware.tts import SpeechSynth
 from jarvis_bud.tools import ToolRunner
 from jarvis_bud.voice import VoiceCommandParser
 
@@ -65,3 +67,45 @@ def test_voice_parser_expanded_commands():
     assert parser.parse("crack wifi").command == "crack_wifi"
     assert parser.parse("god mode").command == "god_mode"
     assert parser.parse("make legendary").command == "make_legendary"
+
+
+def test_speech_synth_piper_path_avoids_shell_execution():
+    synth = SpeechSynth()
+    synth.piper_bin = "/usr/bin/piper"
+    synth.aplay_bin = "/usr/bin/aplay"
+    synth.espeak_bin = None
+
+    class _DummyProc:
+        def __init__(self, with_stdout: bool = False):
+            self.returncode = 0
+            self.stdout = MagicMock() if with_stdout else None
+            self.input = None
+
+        def communicate(self, input=None, timeout=None):
+            self.input = input
+            return (b"", b"")
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+    piper_proc = _DummyProc(with_stdout=True)
+    aplay_proc = _DummyProc(with_stdout=False)
+    popen_calls = []
+
+    def _fake_popen(args, **kwargs):
+        popen_calls.append((args, kwargs))
+        return piper_proc if len(popen_calls) == 1 else aplay_proc
+
+    message = 'hello $(touch /tmp/pwned); `id` | whoami & "quote"'
+    with patch("jarvis_bud.hardware.tts.subprocess.Popen", side_effect=_fake_popen), patch(
+        "jarvis_bud.hardware.tts.subprocess.run"
+    ) as run_mock:
+        assert synth.speak(message) is True
+        run_mock.assert_not_called()
+
+    assert popen_calls[0][0] == [synth.piper_bin, "--model", synth.piper_model, "--output-raw"]
+    assert popen_calls[1][0] == [synth.aplay_bin, "-q", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-"]
+    assert "shell" not in popen_calls[0][1]
+    assert "shell" not in popen_calls[1][1]
+    assert piper_proc.input == message.encode("utf-8")
+    piper_proc.stdout.close.assert_called_once()
