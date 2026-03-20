@@ -27,7 +27,7 @@ sudo apt-get install -y \
     unzip \
     nmap \
     aircrack-ng \
-    hcxpcaptool \
+    hcxtools \
     dnsrecon \
     nikto \
     gobuster \
@@ -43,11 +43,6 @@ sudo apt-get install -y \
     spi-tools \
     i2c-tools \
     libatlas-base-dev \
-    libjasper-dev \
-    libjasper1 \
-    libharfbuzz0b \
-    libwebp6 \
-    libtiff5 \
     libopenjp2-7 \
     libopenblas0
 
