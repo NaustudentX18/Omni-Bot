@@ -112,7 +112,18 @@ class JarvisBud:
 
     def run_first_boot_if_needed(self) -> bool:
         if not self.config_manager.is_configured():
-            print("\n🎯 First-time setup detected!\n")
+            # Start the dashboard immediately so the web wizard is reachable
+            # before hardware is initialised (safe — dashboard only needs config_manager).
+            self.initialize_dashboard()
+            print("\n" + "━" * 60)
+            print("  FIRST-BOOT SETUP".center(60))
+            print("━" * 60)
+            print("\n  🌐  Web wizard (recommended):")
+            print("       http://localhost:8080/setup")
+            print("       http://<your-Pi-IP>:8080/setup\n")
+            print("  Open that URL in any browser on the same network,")
+            print("  or continue below for the terminal wizard.\n")
+            print("━" * 60 + "\n")
             wizard = SetupWizard(config_path=self.config_manager.config_path, buds_path=self.buds_path)
             if wizard.run_interactive():
                 self.config_manager.load()
