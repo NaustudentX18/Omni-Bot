@@ -264,7 +264,7 @@ class SetupWizard:
     def _step_2_connectivity(self) -> bool:
         """Step 2: Connectivity Check.
         
-        Tests WiFi and Pironman server connectivity.
+        Tests WiFi and local Ollama connectivity, then captures network credentials.
         """
         print(f"\n{'Step 2: Connectivity 📡':^60}")
         print("-" * 60)
@@ -290,6 +290,25 @@ class SetupWizard:
         except Exception as e:
             print(f"   ⚠️  WiFi check disabled: {e}")
             connectivity["wifi"] = "⚠️"
+
+        if sys.stdin.isatty():
+            print("\n🧾 Network provisioning")
+            ssid = input("   WiFi SSID (blank = skip): ").strip()
+            password = input("   WiFi password (blank = skip): ").strip() if ssid else ""
+            region = input("   WiFi region (default US): ").strip() or "US"
+            hostname = input("   Device hostname (default omnibot-zero): ").strip() or "omnibot-zero"
+        else:
+            ssid = os.environ.get("NXTGENAI_WIFI_SSID", "").strip()
+            password = os.environ.get("NXTGENAI_WIFI_PASSWORD", "").strip() if ssid else ""
+            region = os.environ.get("NXTGENAI_WIFI_REGION", "US").strip() or "US"
+            hostname = os.environ.get("NXTGENAI_DEVICE_HOSTNAME", "omnibot-zero").strip() or "omnibot-zero"
+
+        self.config["network"] = {
+            "ssid": ssid,
+            "password": password,
+            "region": region,
+            "hostname": hostname,
+        }
         
         # Pironman/Ollama Check with latency threshold
         print("\n🌐 Checking for local Ollama server...")
@@ -377,7 +396,7 @@ class SetupWizard:
     def _step_4_api_configuration(self) -> bool:
         """Step 4: API Configuration.
         
-        User enters OpenRouter key or confirms Ollama.
+        User enters OpenRouter key and offline voice stack preferences.
         """
         print(f"\n{'Step 4: API Configuration 🔑':^60}")
         print("-" * 60)
@@ -404,14 +423,44 @@ class SetupWizard:
                     "api_key": api_choice,
                     "model": client.model
                 }
-                return True
             else:
                 print("❌ API key validation failed. Skipping OpenRouter.\n")
                 self.config["openrouter"] = None
         else:
             print("\nℹ️  OpenRouter skipped. Using local Ollama or fallback.\n")
             self.config["openrouter"] = None
-        
+
+        if sys.stdin.isatty():
+            print("🗣️  Voice stack options")
+            stt_model = input("   STT model (default tiny.en): ").strip() or "tiny.en"
+            tts_profile = input("   TTS profile [cyberpunk/calm/standard] (default cyberpunk): ").strip().lower() or "cyberpunk"
+            if tts_profile not in {"cyberpunk", "calm", "standard"}:
+                tts_profile = "cyberpunk"
+            tts_model_path = input("   Piper model path (default models/piper/en_US-lessac-medium.onnx): ").strip()
+        else:
+            stt_model = os.environ.get("NXTGENAI_STT_MODEL", "tiny.en").strip() or "tiny.en"
+            tts_profile = os.environ.get("NXTGENAI_TTS_PROFILE", "cyberpunk").strip().lower() or "cyberpunk"
+            if tts_profile not in {"cyberpunk", "calm", "standard"}:
+                tts_profile = "cyberpunk"
+            tts_model_path = os.environ.get("NXTGENAI_TTS_MODEL", "").strip()
+
+        self.config["stt"] = {
+            "engine": "faster-whisper",
+            "model_size": stt_model,
+            "sample_rate": 16000,
+        }
+        self.config["tts"] = {
+            "engine": "piper",
+            "profile": tts_profile,
+            "model_path": tts_model_path or "models/piper/en_US-lessac-medium.onnx",
+        }
+        self.config["ai"] = {
+            "prefer_local_first": True,
+            "offline_fallback_model": "models/tinyllama-1.1b-chat-v1.0-Q4_K_M.gguf",
+        }
+        self.config["dashboard"] = {"enabled": True, "host": "127.0.0.1", "port": 8080}
+        self.config["ota"] = {"enabled": True, "remote": "origin"}
+        self.config["sync"] = {"enabled": False, "port": 8091, "service_type": "_omnibot._tcp.local."}
         return True
 
     def _save_config(self) -> bool:

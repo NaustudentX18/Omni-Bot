@@ -36,6 +36,8 @@ class VoiceCommandParser:
             return VoiceIntent(command="export", args={}, risk=2)
         if "crack wifi" in normalized:
             return VoiceIntent(command="crack_wifi", args={}, risk=8)
+        if "sync now" in normalized or "sync peers" in normalized:
+            return VoiceIntent(command="sync_now", args={}, risk=2)
 
         target_match = re.search(r"target add\s+([a-zA-Z0-9.\-/:_]+)", normalized)
         if target_match:
