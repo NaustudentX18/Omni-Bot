@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import time
@@ -68,13 +69,16 @@ class ReportBuilder:
         for item in sorted(self.events, key=lambda e: e.ts):
             mitre = MITRE_MAP.get(item.event, ("-", "Unmapped"))
             color = self._sev_color(item.severity)
+            event = html.escape(item.event, quote=True)
+            detail = html.escape(item.detail, quote=True)
+            mitre_label = f"{html.escape(str(mitre[0]), quote=True)} / {html.escape(str(mitre[1]), quote=True)}"
             rows.append(
                 f"<tr>"
                 f"<td>{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(item.ts))}</td>"
-                f"<td>{item.event}</td>"
-                f"<td>{mitre[0]} / {mitre[1]}</td>"
+                f"<td>{event}</td>"
+                f"<td>{mitre_label}</td>"
                 f"<td style='color:{color};font-weight:bold'>{item.severity}</td>"
-                f"<td>{item.detail}</td>"
+                f"<td>{detail}</td>"
                 f"</tr>"
             )
 
