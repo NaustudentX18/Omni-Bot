@@ -7,7 +7,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from jarvis_bud.audit import AuditLogger
 from jarvis_bud.hardware.tts import SpeechSynth
@@ -76,20 +76,49 @@ def test_speech_synth_piper_path_avoids_shell_execution():
     synth.aplay_bin = "/usr/bin/aplay"
     synth.espeak_bin = None
 
+    class _FakeStdout:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+        def fileno(self):
+            if self.closed:
+                raise ValueError("I/O operation on closed file")
+            return 1
+
+    class _FakeStdin:
+        def __init__(self):
+            self.writes = []
+            self.closed = False
+
+        def write(self, data):
+            self.writes.append(data)
+            return len(data)
+
+        def close(self):
+            self.closed = True
+
     class _DummyProc:
-        def __init__(self, with_stdout: bool = False):
+        def __init__(self, with_stdout: bool = False, with_stdin: bool = False):
             self.returncode = 0
-            self.stdout = MagicMock() if with_stdout else None
-            self.input = None
+            self.stdout = _FakeStdout() if with_stdout else None
+            self.stdin = _FakeStdin() if with_stdin else None
+            self.communicated = False
+            self.wait_called = False
 
         def communicate(self, input=None, timeout=None):
-            self.input = input
+            self.communicated = True
+            if self.stdout:
+                self.stdout.fileno()
             return (b"", b"")
 
         def wait(self, timeout=None):
+            self.wait_called = True
             return self.returncode
 
-    piper_proc = _DummyProc(with_stdout=True)
+    piper_proc = _DummyProc(with_stdout=True, with_stdin=True)
     aplay_proc = _DummyProc(with_stdout=False)
     popen_calls = []
 
@@ -108,8 +137,12 @@ def test_speech_synth_piper_path_avoids_shell_execution():
     assert popen_calls[1][0] == [synth.aplay_bin, "-q", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-"]
     assert "shell" not in popen_calls[0][1]
     assert "shell" not in popen_calls[1][1]
-    assert piper_proc.input == message.encode("utf-8")
-    piper_proc.stdout.close.assert_called_once()
+    assert piper_proc.stdin.writes == [message.encode("utf-8")]
+    assert piper_proc.stdin.closed is True
+    assert piper_proc.communicated is False
+    assert piper_proc.stdout.closed is True
+    assert piper_proc.wait_called is True
+    assert aplay_proc.wait_called is True
 
 
 def test_report_builder_escapes_event_and_detail_html():
