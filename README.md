@@ -448,12 +448,12 @@ MIT License - See [LICENSE](LICENSE) file for details
 - [x] Dual-route AI (local + cloud)
 - [x] 4 built-in personalities
 - [x] Waveform animations
-- [ ] STT (Speech-to-Text)
-- [ ] TTS (Text-to-Speech)
-- [ ] Web dashboard for configuration
-- [ ] OTA updates
-- [ ] Custom skill/plugin system
-- [ ] Multi-device sync
+- [x] STT (Speech-to-Text)
+- [x] TTS (Text-to-Speech)
+- [x] Web dashboard for configuration
+- [x] OTA updates
+- [x] Custom skill/plugin system
+- [x] Multi-device sync
 
 ---
 

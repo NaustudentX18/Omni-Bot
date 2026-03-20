@@ -66,6 +66,7 @@ def test_voice_parser_expanded_commands():
     assert parser.parse("status").command == "status"
     assert parser.parse("target add 10.0.0.5").args["target"] == "10.0.0.5"
     assert parser.parse("crack wifi").command == "crack_wifi"
+    assert parser.parse("sync now").command == "sync_now"
     assert parser.parse("god mode").command == "god_mode"
     assert parser.parse("make legendary").command == "make_legendary"
 

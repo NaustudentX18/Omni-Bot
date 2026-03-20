@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +51,12 @@ class TinyMemory:
         return items
 
     def _enable_vector_backend(self) -> None:
+        if os.environ.get("NXTGENAI_ENABLE_VECTOR_MEMORY", "").lower() not in {"1", "true", "yes"}:
+            # Keep memory footprint low by default on Pi Zero class hardware.
+            self._faiss = None
+            self._encoder = None
+            self._vectors = None
+            return
         try:
             import faiss  # type: ignore
             from sentence_transformers import SentenceTransformer  # type: ignore

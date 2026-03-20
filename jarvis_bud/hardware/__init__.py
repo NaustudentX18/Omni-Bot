@@ -6,5 +6,6 @@ from .battery import Battery
 from .buttons import ButtonHandler
 from .whisplay_io import WhisplayIO
 from .tts import SpeechSynth
+from .stt import SpeechToTextEngine
 
-__all__ = ["ST7789Display", "AudioCodec", "Battery", "ButtonHandler", "WhisplayIO", "SpeechSynth"]
+__all__ = ["ST7789Display", "AudioCodec", "Battery", "ButtonHandler", "WhisplayIO", "SpeechSynth", "SpeechToTextEngine"]

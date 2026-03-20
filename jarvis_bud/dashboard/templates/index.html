@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omni-Bot Dashboard</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --card: rgba(20, 20, 32, 0.9);
+      --text: #d2dce6;
+      --muted: #92a3b5;
+      --neon: #00ff64;
+      --warning: #ffc857;
+      --danger: #ff5470;
+      --border: #1f2d3b;
+    }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    #matrix {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.25;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 1rem auto;
+      padding: 0 1rem;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      backdrop-filter: blur(2px);
+    }
+    .card h3, .card h4 { margin-top: 0; }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.5rem;
+      background: #13222e;
+      color: var(--neon);
+      border: 1px solid #214f42;
+      font-size: 0.8rem;
+    }
+    .muted { color: var(--muted); }
+    .btn {
+      border: 1px solid var(--border);
+      background: #16202a;
+      color: var(--text);
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.8rem;
+      cursor: pointer;
+    }
+    .btn-danger {
+      background: #2b101a;
+      border-color: #532231;
+      color: #ffcbd6;
+    }
+    .form-control {
+      width: 100%;
+      margin-top: 0.25rem;
+      margin-bottom: 0.75rem;
+      background: #0f1520;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 0.45rem;
+      padding: 0.45rem 0.55rem;
+      box-sizing: border-box;
+    }
+    a { color: #8fd9ff; }
+  </style>
+</head>
+<body>
+<canvas id="matrix"></canvas>
+<div class="container">
+  <h1>Omni-Bot Control Deck</h1>
+  <p class="muted">Local-only dashboard on port 8080.</p>
+
+  <div class="row">
+    <section class="card">
+      <h3>Live Status</h3>
+      <p><span class="badge">{{ status.connectivity_mode }}</span> <span class="badge">Bud: {{ status.current_bud }}</span></p>
+      <p>Battery: {{ status.battery.percentage }}% {% if status.battery.charging %}(charging){% endif %}</p>
+      <p>Listening: {{ status.is_listening }}</p>
+      <p>God mode: {{ status.god_mode }}</p>
+      <p>Targets queued: {{ status.targets|length }}</p>
+      <p>Plugins loaded: {{ status.plugin_count }}</p>
+      <p>Sync: {{ status.sync_enabled }} (peers {{ status.sync_peers }})</p>
+      <form action="/emergency-stop" method="post">
+        <button class="btn btn-danger" type="submit">Emergency Stop</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3>Configuration</h3>
+      <form action="/config" method="post">
+        <label>OpenRouter API key</label>
+        <input class="form-control" name="openrouter_api_key" placeholder="sk-...">
+        <label>WiFi SSID</label>
+        <input class="form-control" name="wifi_ssid" value="{{ config.get('network', {}).get('ssid', '') }}">
+        <label>WiFi Password</label>
+        <input class="form-control" name="wifi_password" value="{{ config.get('network', {}).get('password', '') }}">
+        <label>Hostname</label>
+        <input class="form-control" name="hostname" value="{{ config.get('network', {}).get('hostname', '') }}">
+        <label>TTS Profile</label>
+        <select class="form-control" name="tts_profile">
+          <option value="cyberpunk">cyberpunk</option>
+          <option value="calm">calm</option>
+          <option value="standard">standard</option>
+        </select>
+        <button class="btn" type="submit">Save</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3>Reports</h3>
+      {% if reports %}
+        <ul>
+          {% for report in reports %}
+            <li><a href="/reports/{{ report }}" target="_blank">{{ report }}</a></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No reports yet.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById("matrix");
+  const ctx = canvas.getContext("2d");
+  const letters = "01#$@".split("");
+  let cols = 0;
+  let drops = [];
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / 14);
+    drops = Array(cols).fill(1);
+  }
+  function draw() {
+    ctx.fillStyle = "rgba(10,10,15,0.09)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#00ff64";
+    ctx.font = "12px monospace";
+    for (let i = 0; i < drops.length; i++) {
+      const text = letters[Math.floor(Math.random() * letters.length)];
+      ctx.fillText(text, i * 14, drops[i] * 14);
+      if (drops[i] * 14 > canvas.height && Math.random() > 0.975) {
+        drops[i] = 0;
+      }
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+  draw();
+</script>
+</body>
+</html>
