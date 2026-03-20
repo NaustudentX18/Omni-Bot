@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from jarvis_bud.audit import AuditLogger
 from jarvis_bud.hardware.tts import SpeechSynth
+from jarvis_bud.reporting import _find_usb_mount
 from jarvis_bud.tools import ToolRunner
 from jarvis_bud.voice import VoiceCommandParser
 
@@ -109,3 +109,15 @@ def test_speech_synth_piper_path_avoids_shell_execution():
     assert "shell" not in popen_calls[1][1]
     assert piper_proc.input == message.encode("utf-8")
     piper_proc.stdout.close.assert_called_once()
+
+
+def test_find_usb_mount_prefers_nested_device_directory():
+    with tempfile.TemporaryDirectory() as tmp:
+        media_root = Path(tmp) / "media"
+        user_dir = media_root / "pi"
+        device_dir = user_dir / "USB_DRIVE"
+        device_dir.mkdir(parents=True)
+
+        mount = _find_usb_mount([media_root])
+
+        assert mount == device_dir

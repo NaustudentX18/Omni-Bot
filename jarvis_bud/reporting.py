@@ -8,7 +8,7 @@ import time
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 
 MITRE_MAP = {
@@ -109,14 +109,41 @@ th {{ background:#1a2440; color:#8bc4ff; }}
         return str(target)
 
 
-def _find_usb_mount() -> Optional[Path]:
-    candidates = [Path("/media"), Path("/mnt"), Path("/run/media")]
-    for base in candidates:
+def _find_usb_mount(candidates: Optional[Sequence[Path]] = None) -> Optional[Path]:
+    search_roots = list(candidates) if candidates is not None else [Path("/media"), Path("/mnt"), Path("/run/media")]
+    base_fallbacks: List[Path] = []
+    for base in search_roots:
         if not base.exists():
             continue
-        for child in base.iterdir():
-            if child.is_dir() and os.access(child, os.W_OK):
-                return child
+        try:
+            first_level = [child for child in base.iterdir() if child.is_dir()]
+        except OSError:
+            continue
+
+        # Raspberry Pi OS mounts USB drives under /media/<user>/<device>.
+        # Scan one additional level so we pick the device mount and not /media/<user>.
+        scan_dirs: List[Path] = list(first_level)
+        for child in first_level:
+            try:
+                scan_dirs.extend(grandchild for grandchild in child.iterdir() if grandchild.is_dir())
+            except OSError:
+                continue
+
+        mountpoints: List[Path] = []
+        writable_dirs: List[Path] = []
+        for path in scan_dirs:
+            if not os.access(path, os.W_OK):
+                continue
+            writable_dirs.append(path)
+            if path.is_mount():
+                mountpoints.append(path)
+
+        if mountpoints:
+            return max(mountpoints, key=lambda mount: len(mount.parts))
+        if writable_dirs:
+            base_fallbacks.append(max(writable_dirs, key=lambda mount: len(mount.parts)))
+    if base_fallbacks:
+        return base_fallbacks[0]
     return None
 
 
