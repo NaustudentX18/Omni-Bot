@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from jarvis_bud.audit import AuditLogger
 from jarvis_bud.hardware.tts import SpeechSynth
+from jarvis_bud.reporting import ReportBuilder, TimelineEvent
 from jarvis_bud.tools import ToolRunner
 from jarvis_bud.voice import VoiceCommandParser
 
@@ -142,3 +143,22 @@ def test_speech_synth_piper_path_avoids_shell_execution():
     assert piper_proc.stdout.closed is True
     assert piper_proc.wait_called is True
     assert aplay_proc.wait_called is True
+
+
+def test_report_builder_escapes_event_and_detail_html():
+    builder = ReportBuilder()
+    malicious_event = "brain.<img src=x onerror=alert(1)>"
+    payload = {"prompt_preview": "<img src=x onerror=alert(1)>", "risk": 7}
+    builder.events.append(
+        TimelineEvent(
+            ts=1.0,
+            event=malicious_event,
+            detail=json.dumps(payload, ensure_ascii=True),
+            severity=7,
+        )
+    )
+
+    html_report = builder.to_html()
+
+    assert "<img src=x onerror=alert(1)>" not in html_report
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html_report
