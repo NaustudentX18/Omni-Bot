@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
 import random
 import sys
@@ -285,7 +286,30 @@ class JarvisBud:
                 return "Full-auto simulation complete: recon->analysis->report in cinematic mode."
             if not self._targets:
                 return "No targets queued. Say 'target add X' first."
-            result = self.tools.network_recon(f"{self._targets[0]}/32") if "." in self._targets[0] else None
+            target = self._targets[0].strip()
+            target_cidr = target
+
+            if "/" not in target:
+                try:
+                    parsed_ip = ipaddress.ip_address(target)
+                except ValueError:
+                    return (
+                        f"Target '{target}' looks like a hostname. "
+                        "Full-auto recon expects an IPv4 CIDR such as 192.168.1.0/24."
+                    )
+
+                if parsed_ip.version != 4:
+                    return "Full-auto recon currently supports IPv4 CIDR targets only."
+
+                target_cidr = f"{parsed_ip}/32"
+
+            try:
+                result = self.tools.network_recon(target_cidr)
+            except ValueError:
+                return (
+                    f"Target '{target}' is not a valid IPv4 CIDR. "
+                    "Use a target like 192.168.1.0/24."
+                )
             if result:
                 return f"Full-auto recon finished ({result.returncode})."
             return "Full-auto run skipped."

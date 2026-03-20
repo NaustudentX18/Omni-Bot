@@ -9,6 +9,7 @@ from pathlib import Path
 from jarvis_bud.config import ConfigManager
 from jarvis_bud.core.buds import BudManager
 from jarvis_bud.main import JarvisBud
+from jarvis_bud.voice import VoiceIntent
 
 
 class _AlwaysAvailableOllama:
@@ -81,6 +82,15 @@ class RegressionTests(unittest.TestCase):
 
         self.assertIn("🐍 python", response)
         self.assertIn("🐳 docker", response)
+
+    def test_full_auto_reports_hostname_target_error_cleanly(self):
+        app = JarvisBud(config_path="/tmp/nonexistent-jarvis-config.json")
+        app._targets = ["example.com"]
+
+        response = app._execute_voice_intent(VoiceIntent(command="full_auto", args={}, risk=1))
+
+        self.assertIn("hostname", response)
+        self.assertIn("IPv4 CIDR", response)
 
 
 if __name__ == "__main__":
