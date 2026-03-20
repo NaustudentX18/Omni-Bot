@@ -1,6 +1,7 @@
 """Frame Renderer for Jarvis-Bud LCD Display."""
 
 from typing import Optional, Dict, Any
+import random
 from .themes import TerminalDarkTheme, Color
 from .animations import AnimationFrame
 
@@ -309,3 +310,90 @@ class FrameRenderer:
             color=self.theme.NEON_CYAN.rgb(),
             fill=self.theme.NEON_CYAN.rgb()
         )
+
+    def render_matrix_boot(self, lcd_display, frame_idx: int, total_frames: int = 36) -> bool:
+        """Render cyberpunk matrix-rain boot animation frame."""
+        try:
+            lcd_display.clear(self.theme.BACKGROUND.rgb())
+            columns = 20
+            col_width = max(8, self.width // columns)
+            phase = frame_idx / max(1, total_frames)
+            for col in range(columns):
+                x = col * col_width + 2
+                tail = int((phase * self.height + (col * 11) % self.height) % self.height)
+                for offset in range(0, 60, 10):
+                    y = tail - offset
+                    if y < 0:
+                        continue
+                    glow = max(30, 255 - offset * 4)
+                    color = (0, glow, min(180, glow))
+                    lcd_display.draw_text(x, y, random.choice("01#@$"), color=color, font="sm")
+            self.render_progress_overlay(
+                lcd_display=lcd_display,
+                progress=min(1.0, phase),
+                label="BOOTING NXTGENAI",
+            )
+            lcd_display.update()
+            return True
+        except Exception as exc:
+            print(f"⚠️  Matrix boot render failure: {exc}")
+            return False
+
+    def render_ai_thought_ticker(self, lcd_display, thought: str, offset: int = 0) -> None:
+        """Render scrolling 'AI thought' ticker for live model introspection."""
+        ticker = f"AI THOUGHT // {thought or 'idle-scan'} // "
+        padded = ticker * 3
+        start = offset % len(ticker)
+        segment = padded[start : start + 34]
+        lcd_display.draw_rectangle(4, 220, self.width - 4, 244, color=self.theme.NEON_BLUE.rgb(), fill=(18, 18, 28))
+        lcd_display.draw_text(8, 224, segment, color=self.theme.NEON_CYAN.rgb(), font="sm")
+
+    def render_risk_meter(self, lcd_display, risk: int, dry_run: bool = True) -> None:
+        """Render neon risk meter for action gating."""
+        risk = max(0, min(10, int(risk)))
+        bar_left = 12
+        bar_top = 248
+        bar_w = self.width - 24
+        fill_w = int((risk / 10.0) * bar_w)
+        if risk >= 8:
+            color = self.theme.ERROR.rgb()
+        elif risk >= 6:
+            color = self.theme.WARNING.rgb()
+        else:
+            color = self.theme.NEON_GREEN.rgb()
+        lcd_display.draw_rectangle(bar_left, bar_top, bar_left + bar_w, bar_top + 12, color=self.theme.SURFACE.rgb(), fill=(22, 22, 34))
+        lcd_display.draw_rectangle(bar_left, bar_top, bar_left + fill_w, bar_top + 12, color=color, fill=color)
+        mode = "DRY-RUN" if dry_run else "LIVE"
+        lcd_display.draw_text(16, bar_top - 14, f"RISK {risk}/10 [{mode}]", color=color, font="sm")
+
+    def render_progress_overlay(self, lcd_display, progress: float, label: str = "Processing") -> None:
+        """Render a thick neon progress bar with label."""
+        progress = max(0.0, min(1.0, progress))
+        x1, y1 = 10, 256
+        x2, y2 = self.width - 10, 272
+        lcd_display.draw_rectangle(x1, y1, x2, y2, color=self.theme.SURFACE.rgb(), fill=(20, 20, 28))
+        fill = int((x2 - x1) * progress)
+        lcd_display.draw_rectangle(x1, y1, x1 + fill, y2, color=self.theme.NEON_MAGENTA.rgb(), fill=self.theme.NEON_MAGENTA.rgb())
+        lcd_display.draw_text(12, y1 - 16, f"{label}: {int(progress * 100)}%", color=self.theme.NEON_CYAN.rgb(), font="sm")
+
+    def apply_glitch(self, lcd_display, intensity: float = 0.2) -> None:
+        """Overlay subtle glitch lines for cinematic mode."""
+        lines = max(1, int(12 * max(0.0, min(1.0, intensity))))
+        for _ in range(lines):
+            y = random.randint(30, self.height - 24)
+            x1 = random.randint(0, self.width // 3)
+            x2 = min(self.width, x1 + random.randint(self.width // 3, self.width - 1))
+            color = random.choice(
+                [
+                    self.theme.NEON_BLUE.rgb(),
+                    self.theme.NEON_MAGENTA.rgb(),
+                    self.theme.NEON_CYAN.rgb(),
+                ]
+            )
+            lcd_display.draw_line(x1, y, x2, y, color=color, width=1)
+
+    def render_idle_matrix_overlay(self, lcd_display, tick: int = 0) -> None:
+        """Low-intensity matrix rain overlay for idle scenes."""
+        for col in range(0, self.width, 16):
+            y = (tick * 6 + col * 3) % max(1, self.height - 40)
+            lcd_display.draw_text(col, y, random.choice("01"), color=(0, 120, 90), font="sm")

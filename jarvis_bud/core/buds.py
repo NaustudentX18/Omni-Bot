@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+from jarvis_bud.ai.brain import EdgeBrain
 from jarvis_bud.ai.openrouter_client import OpenRouterClient
 from jarvis_bud.core.ollama_client import LocalOllamaClient
 
@@ -54,9 +55,11 @@ class BudManager:
         self,
         ollama: LocalOllamaClient,
         openrouter_key: Optional[str] = None,
+        brain: Optional[EdgeBrain] = None,
     ):
         self.ollama = ollama
         self.openrouter = OpenRouterClient(api_key=openrouter_key) if openrouter_key else None
+        self.brain = brain
         self.buds: Dict[str, BudProfile] = self._build_buds()
         self.active_bud_id = "fogo"
 
@@ -124,6 +127,20 @@ class BudManager:
         """Generate response with local-first, cloud failover behavior."""
         profile = self.active_profile
         prompt = f"User request: {user_prompt}"
+        if self.brain:
+            decision = self.brain.respond(user_prompt)
+            plan = decision.get("plan", [])
+            reflection = decision.get("reflection", "")
+            if isinstance(plan, list):
+                plan_text = "; ".join(str(x) for x in plan[:3])
+            else:
+                plan_text = str(plan)
+            prompt = (
+                f"Plan: {plan_text}\n"
+                f"Reflection: {reflection}\n"
+                f"User request: {user_prompt}\n"
+                "Return concise operator-safe guidance."
+            )
 
         # Only rescan when endpoint is unknown; avoid repeated LAN pings per prompt.
         if not self.ollama.is_available:

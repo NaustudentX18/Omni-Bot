@@ -31,11 +31,14 @@ class WhisplayIO:
         self,
         on_button_a: Optional[Callable[[], None]] = None,
         on_button_b: Optional[Callable[[], None]] = None,
+        on_button_b_long_press: Optional[Callable[[], None]] = None,
     ):
         if on_button_a:
             self.buttons.on_button_a(on_button_a)
         if on_button_b:
             self.buttons.on_button_b(on_button_b)
+        if on_button_b_long_press:
+            self.buttons.on_button_b_long_press(on_button_b_long_press)
 
     async def capture_audio(self, seconds: float = 4.0) -> bytes:
         """Capture microphone audio into raw bytes."""

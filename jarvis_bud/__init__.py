@@ -5,5 +5,5 @@ with Whisplay HAT and PiSugar 3 battery.
 Project: Hardware-first AI companion with Bud personality system.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "NaustudentX18"

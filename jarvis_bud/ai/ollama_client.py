@@ -12,7 +12,7 @@ class OllamaClient:
     Suitable for home/office use via naspi/pironman network.
     """
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "gemma2:2b-instruct-q4_K_M"):
         """Initialize Ollama client.
         
         Args:

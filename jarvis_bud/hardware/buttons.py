@@ -2,16 +2,17 @@
 
 from typing import Callable, Optional
 import time
+import threading
 
 
 class ButtonHandler:
     """
     GPIO button interface for Whisplay HAT buttons.
     Button A (GPIO 17): Listen/Wake
-    Button B (GPIO 27): Cycle Personalities/Modes
+    Button B (GPIO 27): Cycle Personalities/Modes + Long-press emergency stop
     """
 
-    def __init__(self, button_a_gpio=17, button_b_gpio=27):
+    def __init__(self, button_a_gpio=17, button_b_gpio=27, long_press_seconds: float = 2.0):
         """Initialize button handler.
         
         Args:
@@ -23,6 +24,9 @@ class ButtonHandler:
         
         self._button_a_callback: Optional[Callable] = None
         self._button_b_callback: Optional[Callable] = None
+        self._button_b_long_callback: Optional[Callable] = None
+        self._long_press_seconds = long_press_seconds
+        self._callback_lock = threading.Lock()
         
         self.is_initialized = False
         self._use_mock = False
@@ -48,7 +52,7 @@ class ButtonHandler:
                 self.button_b_gpio,
                 GPIO.FALLING,
                 callback=self._handle_button_b,
-                bouncetime=300
+                bouncetime=80
             )
             
             self.is_initialized = True
@@ -69,9 +73,27 @@ class ButtonHandler:
             self._button_a_callback()
 
     def _handle_button_b(self, channel=None):
-        """Internal handler for Button B (Cycle Personalities)."""
-        if self._button_b_callback:
-            self._button_b_callback()
+        """Internal handler for Button B with long-press detection."""
+        with self._callback_lock:
+            press_duration = 0.0
+            if not self._use_mock:
+                try:
+                    import RPi.GPIO as GPIO
+
+                    start = time.monotonic()
+                    # Spin briefly until release to classify press type.
+                    while GPIO.input(self.button_b_gpio) == 0 and press_duration < (self._long_press_seconds + 1.0):
+                        time.sleep(0.02)
+                        press_duration = time.monotonic() - start
+                except Exception:
+                    press_duration = 0.0
+
+            if press_duration >= self._long_press_seconds and self._button_b_long_callback:
+                self._button_b_long_callback()
+                return
+
+            if self._button_b_callback:
+                self._button_b_callback()
 
     def on_button_a(self, callback: Callable):
         """Register callback for Button A (Listen).
@@ -90,6 +112,11 @@ class ButtonHandler:
         """
         self._button_b_callback = callback
         print("🤝 Button B callback registered (Cycle Buds)")
+
+    def on_button_b_long_press(self, callback: Callable):
+        """Register callback for Button B long-press emergency action."""
+        self._button_b_long_callback = callback
+        print(f"🤝 Button B long-press callback registered ({self._long_press_seconds:.1f}s)")
 
     def get_button_a_state(self) -> bool:
         """Get current state of Button A.
@@ -130,6 +157,12 @@ class ButtonHandler:
         """Simulate Button B press (for testing)."""
         print("🔘 Simulating Button B press...")
         self._handle_button_b()
+
+    def simulate_button_b_long_press(self):
+        """Simulate Button B long press (for tests and non-GPIO environments)."""
+        print("🔘 Simulating Button B long press...")
+        if self._button_b_long_callback:
+            self._button_b_long_callback()
 
     def cleanup(self):
         """Clean up GPIO resources."""

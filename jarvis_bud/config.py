@@ -2,21 +2,25 @@
 
 import json
 import os
+import configparser
 from typing import Any, Dict, Optional
 
 
 class ConfigManager:
     """Manage Jarvis-Bud configuration."""
 
-    def __init__(self, config_path: str = "config/config.json"):
+    def __init__(self, config_path: str = "config/config.json", runtime_path: str = "config/config.ini"):
         """Initialize config manager.
         
         Args:
             config_path: Path to config.json
         """
         self.config_path = config_path
+        self.runtime_path = runtime_path
         self._config: Dict[str, Any] = {}
+        self._runtime = configparser.ConfigParser()
         self.load()
+        self.load_runtime()
 
     def load(self) -> bool:
         """Load configuration from file.
@@ -37,6 +41,24 @@ class ConfigManager:
         except Exception as e:
             print(f"❌ Error loading config: {e}")
             self._config = {}
+            return False
+
+    def load_runtime(self) -> bool:
+        """Load runtime INI settings (vibe profiles, sim flags, etc.)."""
+        try:
+            if os.path.exists(self.runtime_path):
+                self._runtime.read(self.runtime_path, encoding="utf-8")
+                return True
+            self._runtime["runtime"] = {
+                "vibe_level": "cinematic",
+                "god_mode": "false",
+                "dry_run": "true",
+            }
+            os.makedirs(os.path.dirname(self.runtime_path) or ".", exist_ok=True)
+            with open(self.runtime_path, "w", encoding="utf-8") as handle:
+                self._runtime.write(handle)
+            return True
+        except Exception:
             return False
 
     def save(self) -> bool:
@@ -123,6 +145,27 @@ class ConfigManager:
             API key or None
         """
         return self.get("openrouter.api_key")
+
+    def get_vibe_level(self) -> str:
+        return self._runtime.get("runtime", "vibe_level", fallback="cinematic")
+
+    def is_god_mode(self) -> bool:
+        return self._runtime.getboolean("runtime", "god_mode", fallback=False)
+
+    def is_dry_run(self) -> bool:
+        return self._runtime.getboolean("runtime", "dry_run", fallback=True)
+
+    def set_runtime(self, key: str, value: str) -> bool:
+        if "runtime" not in self._runtime:
+            self._runtime["runtime"] = {}
+        self._runtime["runtime"][key] = value
+        try:
+            os.makedirs(os.path.dirname(self.runtime_path) or ".", exist_ok=True)
+            with open(self.runtime_path, "w", encoding="utf-8") as handle:
+                self._runtime.write(handle)
+            return True
+        except Exception:
+            return False
 
     def is_configured(self) -> bool:
         """Check if system is configured.
