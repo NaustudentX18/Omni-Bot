@@ -24,6 +24,9 @@ dependencies = [
   "pyaudio>=0.2.14; platform_machine == 'armv6l' or platform_machine == 'armv7l' or platform_machine == 'armv8l' or platform_machine == 'aarch64'",
 ]
 
+[project.scripts]
+jarvis-bud = "jarvis_bud.main:main"
+
 [tool.setuptools.packages.find]
 include = ["jarvis_bud*", "nxtgenai*"]
 
