@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+import grp
 import os
 import pwd
-import grp
 import re
 import shlex
 import signal
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from jarvis_bud.audit import AuditLogger
-
 
 _IPV4_RE = re.compile(r"^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$")
 _CIDR_RE = re.compile(
@@ -50,7 +50,7 @@ class ToolRunner:
         audit: AuditLogger,
         dry_run: bool = True,
         risk_confirm_threshold: int = 6,
-        confirm_callback: Optional[Callable[[str, int], bool]] = None,
+        confirm_callback: Callable[[str, int], bool] | None = None,
         drop_privileges: bool = True,
     ):
         self.audit = audit
@@ -58,7 +58,7 @@ class ToolRunner:
         self.risk_confirm_threshold = risk_confirm_threshold
         self.confirm_callback = confirm_callback
         self.drop_privileges = drop_privileges
-        self._tracked: Dict[int, subprocess.Popen] = {}
+        self._tracked: dict[int, subprocess.Popen] = {}
 
     # ---- Validators -----------------------------------------------------
     def _validate_ip(self, value: str) -> bool:
@@ -100,9 +100,9 @@ class ToolRunner:
 
         return _drop
 
-    def stop_all(self, reason: str = "emergency-stop") -> Dict[str, Any]:
+    def stop_all(self, reason: str = "emergency-stop") -> dict[str, Any]:
         """Terminate every tracked subprocess group."""
-        stopped: List[int] = []
+        stopped: list[int] = []
         for pid, proc in list(self._tracked.items()):
             try:
                 pgid = os.getpgid(pid)
@@ -141,12 +141,16 @@ class ToolRunner:
             return False
         return bool(self.confirm_callback(tool, risk))
 
-    def _exec(self, tool: str, cmd: List[str], risk: int, timeout: int = 120) -> ToolResult:
+    def _exec(self, tool: str, cmd: list[str], risk: int, timeout: int = 120) -> ToolResult:
         cmd_str = " ".join(shlex.quote(part) for part in cmd)
-        self.audit.log_event("tool.call", {"tool": tool, "command": cmd_str, "risk": risk, "dry_run": self.dry_run})
+        self.audit.log_event(
+            "tool.call", {"tool": tool, "command": cmd_str, "risk": risk, "dry_run": self.dry_run}
+        )
 
         if not self._confirm_if_needed(tool, risk):
-            self.audit.log_event("tool.blocked", {"tool": tool, "reason": "confirmation-denied", "risk": risk})
+            self.audit.log_event(
+                "tool.blocked", {"tool": tool, "reason": "confirmation-denied", "risk": risk}
+            )
             return ToolResult(
                 ok=False,
                 tool=tool,
@@ -241,14 +245,18 @@ class ToolRunner:
     def web_pentest(self, target_url: str) -> ToolResult:
         if not self._validate_url(target_url):
             raise ValueError("Invalid URL target")
-        return self._exec("web_pentest", ["nmap", "-sV", "--script", "http-enum", target_url], risk=5, timeout=240)
+        return self._exec(
+            "web_pentest", ["nmap", "-sV", "--script", "http-enum", target_url], risk=5, timeout=240
+        )
 
     def arp_spoof(self, iface: str, target_ip: str, gateway_ip: str) -> ToolResult:
         if not self._validate_iface(iface):
             raise ValueError("Invalid interface")
         if not self._validate_ip(target_ip) or not self._validate_ip(gateway_ip):
             raise ValueError("Invalid IP target")
-        return self._exec("arp_spoof", ["arpspoof", "-i", iface, "-t", target_ip, gateway_ip], risk=8, timeout=120)
+        return self._exec(
+            "arp_spoof", ["arpspoof", "-i", iface, "-t", target_ip, gateway_ip], risk=8, timeout=120
+        )
 
     def hydra(self, target_ip: str, service: str, user_list: str, pass_list: str) -> ToolResult:
         if not self._validate_ip(target_ip):
@@ -273,10 +281,10 @@ class ToolRunner:
         self,
         iface: str,
         capture_prefix: str = "/tmp/wifi_capture",
-        bssid: Optional[str] = None,
+        bssid: str | None = None,
         channel_list: str = "1,6,11",
         deauth_count: int = 10,
-    ) -> Dict[str, ToolResult]:
+    ) -> dict[str, ToolResult]:
         """Capture WPA handshakes with channel hop + optional targeted deauth.
 
         Output conversion attempts hashcat-ready .22000 through hcxpcapngtool.
@@ -288,7 +296,7 @@ class ToolRunner:
         if bssid and not self._validate_mac(bssid):
             raise ValueError("Invalid BSSID")
 
-        results: Dict[str, ToolResult] = {}
+        results: dict[str, ToolResult] = {}
         results["capture"] = self._exec(
             "wifi_crack.capture",
             [
@@ -325,20 +333,24 @@ class ToolRunner:
         )
         return results
 
-    def suggest_wordlists(self, recon_text: str) -> List[str]:
+    def suggest_wordlists(self, recon_text: str) -> list[str]:
         suggestions = []
         lower = recon_text.lower()
         if any(token in lower for token in ("wordpress", "wp-content", "wp-admin")):
             suggestions.append("/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt")
         if any(token in lower for token in ("login", "auth", "signin")):
-            suggestions.append("/usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt")
+            suggestions.append(
+                "/usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt"
+            )
         if any(token in lower for token in ("api", "graphql", "swagger")):
-            suggestions.append("/usr/share/seclists/Discovery/Web-Content/api/api-endpoints-res.txt")
+            suggestions.append(
+                "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints-res.txt"
+            )
         if not suggestions:
             suggestions.append("/usr/share/seclists/Discovery/Web-Content/common.txt")
         return suggestions
 
-    def feroxbuster(self, target_url: str, wordlist: Optional[str] = None) -> ToolResult:
+    def feroxbuster(self, target_url: str, wordlist: str | None = None) -> ToolResult:
         if not self._validate_url(target_url):
             raise ValueError("Invalid URL target")
         cmd = ["feroxbuster", "-u", target_url]
@@ -356,7 +368,9 @@ class ToolRunner:
             raise ValueError("Invalid URL target")
         if not self._validate_path(wordlist):
             raise ValueError("Invalid wordlist path")
-        return self._exec("gobuster", ["gobuster", "dir", "-u", target_url, "-w", wordlist], risk=5, timeout=420)
+        return self._exec(
+            "gobuster", ["gobuster", "dir", "-u", target_url, "-w", wordlist], risk=5, timeout=420
+        )
 
     def dnsrecon(self, domain: str) -> ToolResult:
         if not re.fullmatch(r"[a-zA-Z0-9.-]{1,253}", domain):
@@ -366,5 +380,6 @@ class ToolRunner:
     def theharvester(self, domain: str) -> ToolResult:
         if not re.fullmatch(r"[a-zA-Z0-9.-]{1,253}", domain):
             raise ValueError("Invalid domain")
-        return self._exec("theHarvester", ["theHarvester", "-d", domain, "-b", "bing"], risk=3, timeout=240)
-
+        return self._exec(
+            "theHarvester", ["theHarvester", "-d", domain, "-b", "bing"], risk=3, timeout=240
+        )

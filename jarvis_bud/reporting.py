@@ -7,10 +7,9 @@ import json
 import os
 import time
 import zipfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
-
 
 MITRE_MAP = {
     "network_recon": ("TA0043", "Reconnaissance"),
@@ -33,7 +32,7 @@ class TimelineEvent:
 class ReportBuilder:
     def __init__(self, vibe_level: str = "cinematic"):
         self.vibe_level = vibe_level
-        self.events: List[TimelineEvent] = []
+        self.events: list[TimelineEvent] = []
 
     def ingest_audit_jsonl(self, path: str) -> None:
         ledger = Path(path)
@@ -52,7 +51,14 @@ class ReportBuilder:
                 payload = obj.get("payload", {})
                 detail = json.dumps(payload, ensure_ascii=True)[:280]
                 severity = int(payload.get("risk", 1)) if isinstance(payload, dict) else 1
-                self.events.append(TimelineEvent(ts=float(obj.get("ts", time.time())), event=evt, detail=detail, severity=severity))
+                self.events.append(
+                    TimelineEvent(
+                        ts=float(obj.get("ts", time.time())),
+                        event=evt,
+                        detail=detail,
+                        severity=severity,
+                    )
+                )
 
     @staticmethod
     def _sev_color(severity: int) -> str:
@@ -113,9 +119,13 @@ th {{ background:#1a2440; color:#8bc4ff; }}
         return str(target)
 
 
-def _find_usb_mount(candidates: Optional[Sequence[Path]] = None) -> Optional[Path]:
-    search_roots = list(candidates) if candidates is not None else [Path("/media"), Path("/mnt"), Path("/run/media")]
-    base_fallbacks: List[Path] = []
+def _find_usb_mount(candidates: Sequence[Path] | None = None) -> Path | None:
+    search_roots = (
+        list(candidates)
+        if candidates is not None
+        else [Path("/media"), Path("/mnt"), Path("/run/media")]
+    )
+    base_fallbacks: list[Path] = []
     for base in search_roots:
         if not base.exists():
             continue
@@ -126,15 +136,17 @@ def _find_usb_mount(candidates: Optional[Sequence[Path]] = None) -> Optional[Pat
 
         # Raspberry Pi OS mounts USB drives under /media/<user>/<device>.
         # Scan one additional level so we pick the device mount and not /media/<user>.
-        scan_dirs: List[Path] = list(first_level)
+        scan_dirs: list[Path] = list(first_level)
         for child in first_level:
             try:
-                scan_dirs.extend(grandchild for grandchild in child.iterdir() if grandchild.is_dir())
+                scan_dirs.extend(
+                    grandchild for grandchild in child.iterdir() if grandchild.is_dir()
+                )
             except OSError:
                 continue
 
-        mountpoints: List[Path] = []
-        writable_dirs: List[Path] = []
+        mountpoints: list[Path] = []
+        writable_dirs: list[Path] = []
         for path in scan_dirs:
             if not os.access(path, os.W_OK):
                 continue
@@ -155,7 +167,7 @@ def export_encrypted_zip(
     source_file: str,
     password: str,
     target_filename: str = "nxtgenai_export.zip",
-) -> Optional[str]:
+) -> str | None:
     mount = _find_usb_mount()
     if not mount:
         return None

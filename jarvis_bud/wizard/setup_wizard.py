@@ -2,14 +2,13 @@
 
 import json
 import os
-import time
-from typing import Optional, Dict, Any
-from pathlib import Path
 import sys
+import time
+from typing import Any
 
 from jarvis_bud.core import LocalOllamaClient
-from jarvis_bud.ui import FrameRenderer
 from jarvis_bud.hardware import ST7789Display
+from jarvis_bud.ui import FrameRenderer
 
 
 class SetupWizard:
@@ -22,29 +21,31 @@ class SetupWizard:
         1: "Hardware Check 🔧",
         2: "Connectivity 📡",
         3: "Pick Your Bud 🤝",
-        4: "API Configuration 🔑"
+        4: "API Configuration 🔑",
     }
 
-    def __init__(self, config_path: str = "config/config.json", buds_path: str = "jarvis_bud/buds.json"):
+    def __init__(
+        self, config_path: str = "config/config.json", buds_path: str = "jarvis_bud/buds.json"
+    ):
         """Initialize setup wizard.
-        
+
         Args:
             config_path: Path to save config
             buds_path: Path to buds.json
         """
         self.config_path = config_path
         self.buds_path = buds_path
-        self.config: Dict[str, Any] = {}
-        self.buds: Dict[str, Any] = {}
-        self.display: Optional[ST7789Display] = None
-        self.renderer: Optional[FrameRenderer] = None
-        
+        self.config: dict[str, Any] = {}
+        self.buds: dict[str, Any] = {}
+        self.display: ST7789Display | None = None
+        self.renderer: FrameRenderer | None = None
+
         self._load_buds()
 
     def _load_buds(self):
         """Load available Buds from buds.json."""
         try:
-            with open(self.buds_path, 'r') as f:
+            with open(self.buds_path) as f:
                 data = json.load(f)
                 self.buds = {bud["id"]: bud for bud in data.get("buds", [])}
 
@@ -107,7 +108,9 @@ class SetupWizard:
             self.display = None
             self.renderer = None
 
-    def _render_lcd_step(self, step_number: int, step_title: str, content_lines: list, progress: float):
+    def _render_lcd_step(
+        self, step_number: int, step_title: str, content_lines: list, progress: float
+    ):
         if not self.display or not self.renderer:
             return
         self.renderer.render_wizard_step(
@@ -132,7 +135,7 @@ class SetupWizard:
 
     def should_run(self) -> bool:
         """Check if setup wizard should run (no config.json exists).
-        
+
         Returns:
             True if wizard should run
         """
@@ -140,35 +143,35 @@ class SetupWizard:
 
     def run_interactive(self) -> bool:
         """Run the complete interactive setup wizard.
-        
+
         Returns:
             True if successful
         """
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("🤖 JARVIS-BUD FIRST-BOOT WIZARD 🤖".center(60))
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
         self._init_lcd()
         self._meet_fogo_splash()
-        
+
         try:
             # Step 1: Hardware Check
             if not self._step_1_hardware_check():
                 print("❌ Hardware check failed. Aborting setup.")
                 return False
-            
+
             # Step 2: Connectivity
             if not self._step_2_connectivity():
                 print("⚠️  Connectivity issues, but continuing...")
-            
+
             # Step 3: Personality Selection
             if not self._step_3_personality_selection():
                 print("❌ Personality selection failed. Aborting setup.")
                 return False
-            
+
             # Step 4: API Configuration
             if not self._step_4_api_configuration():
                 print("⚠️  API configuration incomplete, but continuing...")
-            
+
             # Save configuration
             if self._save_config():
                 print("\n✅ Setup complete! Jarvis-Bud is ready to go 🚀\n")
@@ -176,7 +179,7 @@ class SetupWizard:
             else:
                 print("❌ Failed to save configuration.")
                 return False
-                
+
         except KeyboardInterrupt:
             print("\n\n⚠️  Setup cancelled by user.")
             return False
@@ -186,17 +189,19 @@ class SetupWizard:
 
     def _step_1_hardware_check(self) -> bool:
         """Step 1: Hardware Check.
-        
+
         Tests LCD, Audio Codec, and Battery.
         """
         print(f"\n{'Step 1: Hardware Check 🔧':^60}")
         print("-" * 60)
-        self._render_lcd_step(1, "Hardware Check", ["Testing LCD", "Testing WM8960", "Testing PiSugar 3"], 0.25)
-        
-        from jarvis_bud.hardware import ST7789Display, AudioCodec, Battery, ButtonHandler
-        
+        self._render_lcd_step(
+            1, "Hardware Check", ["Testing LCD", "Testing WM8960", "Testing PiSugar 3"], 0.25
+        )
+
+        from jarvis_bud.hardware import AudioCodec, Battery, ButtonHandler, ST7789Display
+
         results = {}
-        
+
         # LCD Check
         print("\n📺 Testing ST7789 LCD Display...")
         try:
@@ -210,7 +215,7 @@ class SetupWizard:
         except Exception as e:
             results["lcd"] = "❌"
             print(f"   ❌ LCD error: {e}")
-        
+
         # Audio Codec Check
         print("\n🎙️  Testing WM8960 Audio Codec...")
         try:
@@ -225,7 +230,7 @@ class SetupWizard:
         except Exception as e:
             results["audio"] = "❌"
             print(f"   ❌ Audio error: {e}")
-        
+
         # Battery Check
         print("\n🔋 Testing PiSugar 3 Battery...")
         try:
@@ -241,46 +246,47 @@ class SetupWizard:
         except Exception as e:
             results["battery"] = "❌"
             print(f"   ❌ Battery error: {e}")
-        
+
         # GPIO Buttons Check
         print("\n🔘 Testing GPIO Buttons...")
         try:
             buttons = ButtonHandler()
             if buttons.is_initialized:
                 results["buttons"] = "✅"
-                print(f"   ✅ Buttons initialized (A={buttons.button_a_gpio}, B={buttons.button_b_gpio})")
+                print(
+                    f"   ✅ Buttons initialized (A={buttons.button_a_gpio}, B={buttons.button_b_gpio})"
+                )
             else:
                 results["buttons"] = "⚠️"
                 print("   ⚠️  Buttons in mock mode")
         except Exception as e:
             results["buttons"] = "❌"
             print(f"   ❌ Buttons error: {e}")
-        
+
         self.config["hardware"] = results
-        
+
         # Check if at least LCD and Audio work
         return results.get("lcd") in ["✅", "⚠️"] and results.get("audio") in ["✅", "⚠️"]
 
     def _step_2_connectivity(self) -> bool:
         """Step 2: Connectivity Check.
-        
+
         Tests WiFi and local Ollama connectivity, then captures network credentials.
         """
         print(f"\n{'Step 2: Connectivity 📡':^60}")
         print("-" * 60)
-        self._render_lcd_step(2, "Connectivity", ["Scanning LAN", "Finding Ollama", "Checking latency"], 0.5)
-        
-        connectivity = {}
-        
+        self._render_lcd_step(
+            2, "Connectivity", ["Scanning LAN", "Finding Ollama", "Checking latency"], 0.5
+        )
+
+        connectivity: dict[str, Any] = {}
+
         # WiFi Check
         print("\n📳 Scanning WiFi networks...")
         try:
             import subprocess
-            result = subprocess.run(
-                ["iwlist", "wlan0", "scanning"],
-                capture_output=True,
-                timeout=5
-            )
+
+            result = subprocess.run(["iwlist", "wlan0", "scanning"], capture_output=True, timeout=5)
             if result.returncode == 0:
                 print("   ✅ WiFi scan successful")
                 connectivity["wifi"] = "✅"
@@ -296,12 +302,16 @@ class SetupWizard:
             ssid = input("   WiFi SSID (blank = skip): ").strip()
             password = input("   WiFi password (blank = skip): ").strip() if ssid else ""
             region = input("   WiFi region (default US): ").strip() or "US"
-            hostname = input("   Device hostname (default omnibot-zero): ").strip() or "omnibot-zero"
+            hostname = (
+                input("   Device hostname (default omnibot-zero): ").strip() or "omnibot-zero"
+            )
         else:
             ssid = os.environ.get("NXTGENAI_WIFI_SSID", "").strip()
             password = os.environ.get("NXTGENAI_WIFI_PASSWORD", "").strip() if ssid else ""
             region = os.environ.get("NXTGENAI_WIFI_REGION", "US").strip() or "US"
-            hostname = os.environ.get("NXTGENAI_DEVICE_HOSTNAME", "omnibot-zero").strip() or "omnibot-zero"
+            hostname = (
+                os.environ.get("NXTGENAI_DEVICE_HOSTNAME", "omnibot-zero").strip() or "omnibot-zero"
+            )
 
         self.config["network"] = {
             "ssid": ssid,
@@ -309,7 +319,7 @@ class SetupWizard:
             "region": region,
             "hostname": hostname,
         }
-        
+
         # Pironman/Ollama Check with latency threshold
         print("\n🌐 Checking for local Ollama server...")
         try:
@@ -341,26 +351,31 @@ class SetupWizard:
             connectivity["ollama"] = None
             connectivity["ollama_latency_ms"] = None
             connectivity["ollama_model"] = None
-        
+
         self.config["connectivity"] = connectivity
         return True
 
     def _step_3_personality_selection(self) -> bool:
         """Step 3: Select Personality/Bud.
-        
+
         User chooses from available personalities.
         """
         print(f"\n{'Step 3: Pick Your Bud 🤝':^60}")
         print("-" * 60)
         print("\nAvailable personalities:\n")
-        self._render_lcd_step(3, "Pick Your Bud", ["Fogo: maker brain", "Mango: chill vibe", "Button B cycles later"], 0.75)
-        
+        self._render_lcd_step(
+            3,
+            "Pick Your Bud",
+            ["Fogo: maker brain", "Mango: chill vibe", "Button B cycles later"],
+            0.75,
+        )
+
         bud_list = list(self.buds.values())
-        
+
         for i, bud in enumerate(bud_list, 1):
             print(f"  {i}. {bud['name']}")
             print(f"     └─ {bud['description']}\n")
-        
+
         if not sys.stdin.isatty():
             selected_bud = self.buds.get("fogo") or bud_list[0]
             self.config["bud"] = {
@@ -376,16 +391,16 @@ class SetupWizard:
             try:
                 choice = input(f"Select personality (1-{len(bud_list)}): ").strip()
                 choice_idx = int(choice) - 1
-                
+
                 if 0 <= choice_idx < len(bud_list):
                     selected_bud = bud_list[choice_idx]
                     print(f"\n✅ Selected: {selected_bud['name']} {selected_bud['emoji']}\n")
-                    
+
                     self.config["bud"] = {
                         "id": selected_bud["id"],
                         "name": selected_bud["name"],
                         "system_prompt": selected_bud["system_prompt"],
-                        "ui_accent_color": selected_bud["ui_accent_color"]
+                        "ui_accent_color": selected_bud["ui_accent_color"],
                     }
                     return True
                 else:
@@ -395,34 +410,36 @@ class SetupWizard:
 
     def _step_4_api_configuration(self) -> bool:
         """Step 4: API Configuration.
-        
+
         User enters OpenRouter key and offline voice stack preferences.
         """
         print(f"\n{'Step 4: API Configuration 🔑':^60}")
         print("-" * 60)
-        self._render_lcd_step(4, "API Setup", ["OpenRouter optional", "Gemini 2.0 Flash Lite", "Used for failover"], 1.0)
-        
+        self._render_lcd_step(
+            4,
+            "API Setup",
+            ["OpenRouter optional", "Gemini 2.0 Flash Lite", "Used for failover"],
+            1.0,
+        )
+
         print("\n🌐 OpenRouter Setup (Optional but recommended for mobile use)")
         print("   Get a free API key at: https://openrouter.ai/keys")
-        
+
         if sys.stdin.isatty():
             api_choice = input("\nEnter OpenRouter API key (or press Enter to skip): ").strip()
         else:
             api_choice = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        
+
         if api_choice:
             # Validate API key
             from jarvis_bud.ai import OpenRouterClient
-            
+
             print("\n🔍 Validating OpenRouter key...")
             client = OpenRouterClient(api_key=api_choice)
-            
+
             if client.is_available:
                 print("✅ OpenRouter API key is valid!\n")
-                self.config["openrouter"] = {
-                    "api_key": api_choice,
-                    "model": client.model
-                }
+                self.config["openrouter"] = {"api_key": api_choice, "model": client.model}
             else:
                 print("❌ API key validation failed. Skipping OpenRouter.\n")
                 self.config["openrouter"] = None
@@ -433,13 +450,22 @@ class SetupWizard:
         if sys.stdin.isatty():
             print("🗣️  Voice stack options")
             stt_model = input("   STT model (default tiny.en): ").strip() or "tiny.en"
-            tts_profile = input("   TTS profile [cyberpunk/calm/standard] (default cyberpunk): ").strip().lower() or "cyberpunk"
+            tts_profile = (
+                input("   TTS profile [cyberpunk/calm/standard] (default cyberpunk): ")
+                .strip()
+                .lower()
+                or "cyberpunk"
+            )
             if tts_profile not in {"cyberpunk", "calm", "standard"}:
                 tts_profile = "cyberpunk"
-            tts_model_path = input("   Piper model path (default models/piper/en_US-lessac-medium.onnx): ").strip()
+            tts_model_path = input(
+                "   Piper model path (default models/piper/en_US-lessac-medium.onnx): "
+            ).strip()
         else:
             stt_model = os.environ.get("NXTGENAI_STT_MODEL", "tiny.en").strip() or "tiny.en"
-            tts_profile = os.environ.get("NXTGENAI_TTS_PROFILE", "cyberpunk").strip().lower() or "cyberpunk"
+            tts_profile = (
+                os.environ.get("NXTGENAI_TTS_PROFILE", "cyberpunk").strip().lower() or "cyberpunk"
+            )
             if tts_profile not in {"cyberpunk", "calm", "standard"}:
                 tts_profile = "cyberpunk"
             tts_model_path = os.environ.get("NXTGENAI_TTS_MODEL", "").strip()
@@ -460,7 +486,11 @@ class SetupWizard:
         }
         self.config["dashboard"] = {"enabled": True, "host": "127.0.0.1", "port": 8080}
         self.config["ota"] = {"enabled": True, "remote": "origin"}
-        self.config["sync"] = {"enabled": False, "port": 8091, "service_type": "_omnibot._tcp.local."}
+        self.config["sync"] = {
+            "enabled": False,
+            "port": 8091,
+            "service_type": "_omnibot._tcp.local.",
+        }
         return True
 
     def _save_config(self) -> bool:
@@ -468,25 +498,25 @@ class SetupWizard:
         try:
             # Ensure config directory exists
             os.makedirs(os.path.dirname(self.config_path) or ".", exist_ok=True)
-            
-            with open(self.config_path, 'w') as f:
+
+            with open(self.config_path, "w") as f:
                 json.dump(self.config, f, indent=2)
-            
+
             print(f"💾 Configuration saved to {self.config_path}")
             return True
-            
+
         except Exception as e:
             print(f"❌ Failed to save config: {e}")
             return False
 
-    def load_config(self) -> Optional[Dict]:
+    def load_config(self) -> dict | None:
         """Load existing configuration.
-        
+
         Returns:
             Config dict or None if not found
         """
         try:
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path) as f:
                 return json.load(f)
         except Exception:
             return None

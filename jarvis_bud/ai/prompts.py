@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
-
 BASE_SYSTEM_PROMPT = """
 You are NXTGENAI, an offline, Pi-native assistant embedded in a Raspberry Pi Zero 2 W.
 Constraints are sacred:
@@ -33,7 +30,7 @@ Result: Legendary demo executed in god mode with no real network aggression.
 """
 
 
-VIBE_STYLES: Dict[str, str] = {
+VIBE_STYLES: dict[str, str] = {
     "stealth": "Tone: restrained, tactical, low-noise execution language.",
     "aggressive": "Tone: direct, high-tempo, operator-centric phrasing.",
     "cinematic": "Tone: neon cyberpunk narration with short dramatic beats.",

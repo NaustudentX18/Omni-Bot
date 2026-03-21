@@ -5,7 +5,6 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -13,13 +12,13 @@ class OTAStatus:
     available: bool
     branch: str
     behind_count: int
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class OTAUpdater:
     """Handle update detection and application from git remote."""
 
-    def __init__(self, repo_path: str = ".", remote: str = "origin", branch: Optional[str] = None):
+    def __init__(self, repo_path: str = ".", remote: str = "origin", branch: str | None = None):
         self.repo_path = Path(repo_path)
         self.remote = remote
         self.branch = branch or self._detect_branch()
@@ -42,11 +41,21 @@ class OTAUpdater:
     def check_updates(self) -> OTAStatus:
         fetch = self._run(["git", "fetch", self.remote, self.branch])
         if fetch.returncode != 0:
-            return OTAStatus(available=False, branch=self.branch, behind_count=0, error=fetch.stderr.strip() or "git fetch failed")
+            return OTAStatus(
+                available=False,
+                branch=self.branch,
+                behind_count=0,
+                error=fetch.stderr.strip() or "git fetch failed",
+            )
 
         proc = self._run(["git", "rev-list", "--count", f"HEAD..{self.remote}/{self.branch}"])
         if proc.returncode != 0:
-            return OTAStatus(available=False, branch=self.branch, behind_count=0, error=proc.stderr.strip() or "git rev-list failed")
+            return OTAStatus(
+                available=False,
+                branch=self.branch,
+                behind_count=0,
+                error=proc.stderr.strip() or "git rev-list failed",
+            )
         try:
             behind = int(proc.stdout.strip() or "0")
         except ValueError:

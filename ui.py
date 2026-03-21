@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 
 def button_confirm(buttons, timeout_s: float = 6.0) -> bool:
@@ -21,6 +20,6 @@ def button_confirm(buttons, timeout_s: float = 6.0) -> bool:
     return False
 
 
-def emergency_banner_text(reason: Optional[str] = None) -> str:
+def emergency_banner_text(reason: str | None = None) -> str:
     suffix = f" // {reason}" if reason else ""
     return f"EMERGENCY STOP ENGAGED{suffix}"

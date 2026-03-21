@@ -4,20 +4,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 
 @dataclass
 class VoiceIntent:
     command: str
-    args: Dict[str, str]
+    args: dict[str, str]
     risk: int
 
 
 class VoiceCommandParser:
     """Keyword parser tuned for low-resource offline command routing."""
 
-    def parse(self, text: str) -> Optional[VoiceIntent]:
+    def parse(self, text: str) -> VoiceIntent | None:
         normalized = " ".join(text.lower().strip().split())
         if not normalized:
             return None
