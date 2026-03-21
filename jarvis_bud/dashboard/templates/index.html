@@ -6,169 +6,501 @@
   <title>Omni-Bot Dashboard</title>
   <style>
     :root {
-      --bg: #0a0a0f;
-      --card: rgba(20, 20, 32, 0.9);
+      --bg: #06060f;
+      --surface: rgba(12,12,22,0.96);
+      --card: rgba(14,14,28,0.9);
+      --border: #1a2233;
       --text: #d2dce6;
-      --muted: #92a3b5;
-      --neon: #00ff64;
-      --warning: #ffc857;
-      --danger: #ff5470;
-      --border: #1f2d3b;
+      --muted: #4e5f70;
+      --neon: #00ff88;
+      --blue: #00bfff;
+      --warn: #ffcc44;
+      --danger: #ff4466;
+      --radius: 14px;
+      --accent: {{ config.get('bud', {}).get('ui_accent_color', '#00ff88') }};
     }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
-      color: var(--text);
       background: var(--bg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
     }
-    #matrix {
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      opacity: 0.25;
+    #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.18; }
+    .wrap { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; padding: 0 1rem 3rem; }
+
+    /* ── top bar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
     }
-    .container {
-      max-width: 1100px;
-      margin: 1rem auto;
-      padding: 0 1rem;
+    .topbar-left { display: flex; align-items: center; gap: 0.75rem; }
+    .bot-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent) 0%, transparent 70%);
+      border: 2px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent);
+      animation: pulse-ring 2.5s ease-in-out infinite;
     }
-    .row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1rem;
+    @keyframes pulse-ring {
+      0%,100% { box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+      50%      { box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 55%, transparent); }
     }
+    .bot-info h1 { font-size: 1.1rem; font-weight: 700; line-height: 1; }
+    .bot-info p  { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .topbar-right { display: flex; gap: 0.5rem; align-items: center; }
+    .conn-badge {
+      padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+      border: 1px solid; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .conn-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .badge-local  { color: var(--neon);   border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.07); }
+    .badge-cloud  { color: var(--blue);   border-color: rgba(0,191,255,0.3); background: rgba(0,191,255,0.07); }
+    .badge-offline{ color: var(--muted);  border-color: var(--border);       background: rgba(255,255,255,0.03); }
+    .badge-god    { color: var(--warn);   border-color: rgba(255,204,68,0.3); background: rgba(255,204,68,0.07); }
+
+    /* ── tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+    .tab {
+      padding: 0.65rem 1.1rem; font-size: 0.85rem; cursor: pointer;
+      border-bottom: 2px solid transparent; color: var(--muted);
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .tab-panel { display: none; animation: fadeIn 0.25s ease; }
+    .tab-panel.active { display: block; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── grid ── */
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px,1fr)); gap: 1rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px,1fr)); gap: 1rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 1rem; }
+
+    /* ── card ── */
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 0.75rem;
-      padding: 1rem;
-      backdrop-filter: blur(2px);
+      border-radius: var(--radius);
+      padding: 1.1rem;
+      backdrop-filter: blur(4px);
+      transition: border-color 0.2s;
     }
-    .card h3, .card h4 { margin-top: 0; }
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.5rem;
-      background: #13222e;
-      color: var(--neon);
-      border: 1px solid #214f42;
-      font-size: 0.8rem;
+    .card:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+    .card-title {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--muted); margin-bottom: 0.9rem;
+      display: flex; align-items: center; justify-content: space-between;
     }
-    .muted { color: var(--muted); }
-    .btn {
+    .card-title span { color: var(--accent); font-size: 0.8rem; }
+
+    /* ── stat rows ── */
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-key { font-size: 0.82rem; color: var(--muted); }
+    .stat-val { font-size: 0.85rem; font-weight: 600; }
+    .stat-val.green { color: var(--neon); }
+    .stat-val.blue  { color: var(--blue); }
+    .stat-val.warn  { color: var(--warn); }
+
+    /* ── battery ── */
+    .battery-bar {
+      height: 8px; border-radius: 4px;
+      background: var(--border); margin: 0.7rem 0 0.3rem;
+      overflow: hidden;
+    }
+    .battery-fill {
+      height: 100%; border-radius: 4px;
+      background: linear-gradient(90deg, var(--neon), var(--blue));
+      transition: width 0.5s;
+    }
+
+    /* ── thought ticker ── */
+    .ticker-box {
+      background: #07070f;
       border: 1px solid var(--border);
-      background: #16202a;
-      color: var(--text);
-      border-radius: 0.5rem;
-      padding: 0.5rem 0.8rem;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+      color: var(--accent);
+      font-family: monospace;
+      overflow: hidden;
+      white-space: nowrap;
+      position: relative;
+      margin-top: 0.75rem;
+    }
+    .ticker-inner { display: inline-block; animation: ticker 18s linear infinite; }
+    @keyframes ticker { 0%{transform:translateX(100%)} 100%{transform:translateX(-200%)} }
+
+    /* ── bud selector cards ── */
+    .bud-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 0.6rem;
+    }
+    .bud-mini {
+      background: #0c0c1e;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.5rem;
+      text-align: center;
       cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
     }
-    .btn-danger {
-      background: #2b101a;
-      border-color: #532231;
-      color: #ffcbd6;
+    .bud-mini:hover { border-color: var(--accent); }
+    .bud-mini.active-bud {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, #0c0c1e);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 25%, transparent);
     }
-    .form-control {
-      width: 100%;
-      margin-top: 0.25rem;
-      margin-bottom: 0.75rem;
-      background: #0f1520;
+    .bud-mini-face { font-size: 1.6rem; display: block; margin-bottom: 0.3rem; }
+    .bud-mini-name { font-size: 0.68rem; font-weight: 600; }
+    .bud-mini-tag  { font-size: 0.58rem; color: var(--muted); margin-top: 1px; }
+    .bud-switch-btn {
+      display: block; width: 100%; margin-top: 0.8rem;
+      padding: 0.4rem; border-radius: 8px;
       border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 0.45rem;
-      padding: 0.45rem 0.55rem;
-      box-sizing: border-box;
+      background: #101520; color: var(--text);
+      font-size: 0.78rem; cursor: pointer; transition: all 0.2s;
     }
-    a { color: #8fd9ff; }
+    .bud-switch-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── form elements ── */
+    .field { margin-bottom: 0.9rem; }
+    .field label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .field input, .field select {
+      width: 100%; background: #080e18; border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 0.88rem;
+    }
+    .field input:focus, .field select:focus { outline: none; border-color: var(--blue); }
+
+    /* ── buttons ── */
+    .btn {
+      padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+      background: #101520; color: var(--text); transition: all 0.2s;
+    }
+    .btn:hover { background: #1a2030; }
+    .btn-primary { background: linear-gradient(135deg, var(--neon), var(--blue)); border-color: transparent; color: #000; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-danger  { background: #1a0610; border-color: #441020; color: #ffcbd6; }
+    .btn-danger:hover { background: #280918; border-color: var(--danger); }
+    .btn-sm { padding: 0.3rem 0.75rem; font-size: 0.78rem; }
+
+    /* ── report list ── */
+    .report-list { list-style: none; }
+    .report-list li {
+      padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+      font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;
+    }
+    .report-list li:last-child { border-bottom: none; }
+    .report-list a { color: var(--blue); text-decoration: none; }
+    .report-list a:hover { text-decoration: underline; }
+
+    /* ── target list ── */
+    .target-tag {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 6px; font-size: 0.75rem;
+      background: rgba(0,191,255,0.08); border: 1px solid rgba(0,191,255,0.2); color: var(--blue);
+      margin: 2px;
+    }
+    .empty-msg { color: var(--muted); font-size: 0.82rem; }
+
+    /* ── risk meter ── */
+    .risk-row { display: flex; gap: 3px; align-items: center; margin-top: 0.4rem; }
+    .risk-seg {
+      height: 8px; flex: 1; border-radius: 2px;
+      background: var(--border); transition: background 0.3s;
+    }
+
+    /* ── responsive ── */
+    @media(max-width:600px){
+      .topbar { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+      .bud-mini-grid { grid-template-columns: repeat(4, 1fr); }
+    }
   </style>
 </head>
 <body>
-<canvas id="matrix"></canvas>
-<div class="container">
-  <h1>Omni-Bot Control Deck</h1>
-  <p class="muted">Local-only dashboard on port 8080.</p>
+<canvas id="bg-canvas"></canvas>
+<div class="wrap">
 
-  <div class="row">
-    <section class="card">
-      <h3>Live Status</h3>
-      <p><span class="badge">{{ status.connectivity_mode }}</span> <span class="badge">Bud: {{ status.current_bud }}</span></p>
-      <p>Battery: {{ status.battery.percentage }}% {% if status.battery.charging %}(charging){% endif %}</p>
-      <p>Listening: {{ status.is_listening }}</p>
-      <p>God mode: {{ status.god_mode }}</p>
-      <p>Targets queued: {{ status.targets|length }}</p>
-      <p>Plugins loaded: {{ status.plugin_count }}</p>
-      <p>Sync: {{ status.sync_enabled }} (peers {{ status.sync_peers }})</p>
-      <form action="/emergency-stop" method="post">
-        <button class="btn btn-danger" type="submit">Emergency Stop</button>
+  <!-- top bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="bot-avatar" id="bot-avatar">
+        {{ config.get('bud', {}).get('id', '🤖') | upper | truncate(1,true,'') }}
+      </div>
+      <div class="bot-info">
+        <h1>{{ status.current_bud }}</h1>
+        <p>Omni-Bot Control Deck &nbsp;·&nbsp; port 8080</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="conn-badge badge-{{ status.connectivity_mode }}">{{ status.connectivity_mode }}</span>
+      {% if status.god_mode %}<span class="conn-badge badge-god">⚡ god mode</span>{% endif %}
+      <form action="/emergency-stop" method="post" style="margin:0">
+        <button class="btn btn-danger btn-sm" type="submit">■ Stop</button>
       </form>
-    </section>
+    </div>
+  </div>
 
-    <section class="card">
-      <h3>Configuration</h3>
-      <form action="/config" method="post">
-        <label>OpenRouter API key</label>
-        <input class="form-control" name="openrouter_api_key" placeholder="sk-...">
-        <label>WiFi SSID</label>
-        <input class="form-control" name="wifi_ssid" value="{{ config.get('network', {}).get('ssid', '') }}">
-        <label>WiFi Password</label>
-        <input class="form-control" name="wifi_password" value="{{ config.get('network', {}).get('password', '') }}">
-        <label>Hostname</label>
-        <input class="form-control" name="hostname" value="{{ config.get('network', {}).get('hostname', '') }}">
-        <label>TTS Profile</label>
-        <select class="form-control" name="tts_profile">
-          <option value="cyberpunk">cyberpunk</option>
-          <option value="calm">calm</option>
-          <option value="standard">standard</option>
-        </select>
-        <button class="btn" type="submit">Save</button>
-      </form>
-    </section>
+  <!-- tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('status')">📊 Status</div>
+    <div class="tab" onclick="switchTab('buds')">🤝 My Buds</div>
+    <div class="tab" onclick="switchTab('config')">⚙️ Config</div>
+    <div class="tab" onclick="switchTab('voices')">🎙️ Voices</div>
+    <div class="tab" onclick="switchTab('reports')">📄 Reports</div>
+  </div>
 
-    <section class="card">
-      <h3>Reports</h3>
+  <!-- ── STATUS TAB ── -->
+  <div class="tab-panel active" id="tab-status">
+    <div class="grid-3">
+
+      <!-- live AI card -->
+      <div class="card">
+        <div class="card-title">AI Brain <span id="live-dot">●</span></div>
+        <div class="stat-row"><span class="stat-key">Bud</span><span class="stat-val green" id="s-bud">{{ status.current_bud }}</span></div>
+        <div class="stat-row"><span class="stat-key">Connectivity</span><span class="stat-val blue" id="s-conn">{{ status.connectivity_mode }}</span></div>
+        <div class="stat-row"><span class="stat-key">Plugins</span><span class="stat-val" id="s-plugins">{{ status.plugin_count }}</span></div>
+        <div class="stat-row"><span class="stat-key">Listening</span><span class="stat-val" id="s-listen">{{ '🎙 Active' if status.is_listening else '—' }}</span></div>
+        <div class="stat-row"><span class="stat-key">Running</span><span class="stat-val" id="s-running">{{ '✅ Yes' if status.is_running else '⛔ No' }}</span></div>
+        <div class="ticker-box">
+          <div class="ticker-inner" id="thought-ticker">{{ status.last_ai_thought or 'Boot sequence complete…' }}</div>
+        </div>
+      </div>
+
+      <!-- battery & sync -->
+      <div class="card">
+        <div class="card-title">Hardware &amp; Sync</div>
+        <div class="stat-row">
+          <span class="stat-key">Battery</span>
+          <span class="stat-val" id="s-batt">{{ status.battery.percentage }}% {% if status.battery.charging %}⚡{% endif %}</span>
+        </div>
+        <div class="battery-bar"><div class="battery-fill" id="batt-fill" style="width:{{ status.battery.percentage }}%"></div></div>
+        <div class="stat-row"><span class="stat-key">Sync enabled</span><span class="stat-val">{{ '✅' if status.sync_enabled else '—' }}</span></div>
+        <div class="stat-row"><span class="stat-key">Sync peers</span><span class="stat-val">{{ status.sync_peers }}</span></div>
+        <div class="stat-row"><span class="stat-key">God mode</span><span class="stat-val warn">{{ '⚡ ON' if status.god_mode else '—' }}</span></div>
+      </div>
+
+      <!-- targets -->
+      <div class="card">
+        <div class="card-title">Active Targets <span>{{ status.targets | length }}</span></div>
+        {% if status.targets %}
+          <div style="padding: 0.25rem 0">
+            {% for t in status.targets %}<span class="target-tag">{{ t }}</span>{% endfor %}
+          </div>
+        {% else %}
+          <p class="empty-msg" style="padding:0.5rem 0">No targets queued. Use voice command "target add X".</p>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── BUDS TAB ── -->
+  <div class="tab-panel" id="tab-buds">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.2rem">
+      Switch your active Bud at any time — Button B on device also cycles through them.
+    </p>
+    <div class="bud-mini-grid">
+      {% for bud in buds %}
+      <div class="bud-mini {% if bud.id == config.get('bud',{}).get('id','') %}active-bud{% endif %}"
+           style="--accent: {{ bud.ui_accent_color }}">
+        <span class="bud-mini-face">{{ bud.face }}</span>
+        <div class="bud-mini-name">{{ bud.name }}</div>
+        <div class="bud-mini-tag">{{ bud.tagline }}</div>
+        <form action="/config/bud" method="post" style="margin:0">
+          <input type="hidden" name="bud_id" value="{{ bud.id }}">
+          <input type="hidden" name="bud_name" value="{{ bud.name }}">
+          <input type="hidden" name="bud_prompt" value="{{ bud.system_prompt | e }}">
+          <input type="hidden" name="bud_color" value="{{ bud.ui_accent_color }}">
+          <button class="bud-switch-btn" type="submit">Activate</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── CONFIG TAB ── -->
+  <div class="tab-panel" id="tab-config">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Cloud API</div>
+        <form action="/config" method="post">
+          <div class="field">
+            <label>OpenRouter API Key</label>
+            <input type="password" name="openrouter_api_key" placeholder="sk-or-...  (leave blank to keep existing)">
+          </div>
+          <div class="field">
+            <label>TTS Voice Profile</label>
+            <select name="tts_profile">
+              <option value="cyberpunk" {% if config.get('tts',{}).get('profile','cyberpunk')=='cyberpunk' %}selected{% endif %}>cyberpunk</option>
+              <option value="calm"      {% if config.get('tts',{}).get('profile')=='calm'      %}selected{% endif %}>calm</option>
+              <option value="standard"  {% if config.get('tts',{}).get('profile')=='standard'  %}selected{% endif %}>standard</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" type="submit">Save Changes</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Network</div>
+        <form action="/config" method="post">
+          <div class="field">
+            <label>WiFi SSID</label>
+            <input type="text" name="wifi_ssid" value="{{ config.get('network',{}).get('ssid','') }}" placeholder="Network name">
+          </div>
+          <div class="field">
+            <label>WiFi Password</label>
+            <input type="password" name="wifi_password" placeholder="Leave blank to keep existing">
+          </div>
+          <div class="field">
+            <label>Hostname</label>
+            <input type="text" name="hostname" value="{{ config.get('network',{}).get('hostname','omnibot-zero') }}">
+          </div>
+          <button class="btn btn-primary" type="submit">Save Network</button>
+        </form>
+      </div>
+    </div>
+    <div style="margin-top:1rem">
+      <a href="/setup" class="btn btn-sm">↩ Re-run Setup Wizard</a>
+    </div>
+  </div>
+
+  <!-- ── VOICES TAB ── -->
+  <div class="tab-panel" id="tab-voices">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.2rem">
+      Download voices to your device. The active voice is set in Config or the Setup Wizard.
+    </p>
+    <div class="grid-4" id="voice-cards-dash"></div>
+  </div>
+
+  <!-- ── REPORTS TAB ── -->
+  <div class="tab-panel" id="tab-reports">
+    <div class="card" style="max-width:600px">
+      <div class="card-title">Generated Reports</div>
       {% if reports %}
-        <ul>
+        <ul class="report-list">
           {% for report in reports %}
-            <li><a href="/reports/{{ report }}" target="_blank">{{ report }}</a></li>
+          <li>
+            <a href="/reports/{{ report }}" target="_blank">{{ report }}</a>
+            <span style="font-size:0.72rem;color:var(--muted)">HTML</span>
+          </li>
           {% endfor %}
         </ul>
       {% else %}
-        <p class="muted">No reports yet.</p>
+        <p class="empty-msg">No reports yet. Use voice command "export" to generate one.</p>
       {% endif %}
-    </section>
+    </div>
   </div>
-</div>
+
+</div><!-- /wrap -->
 
 <script>
-  const canvas = document.getElementById("matrix");
-  const ctx = canvas.getContext("2d");
-  const letters = "01#$@".split("");
-  let cols = 0;
-  let drops = [];
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    cols = Math.floor(canvas.width / 14);
-    drops = Array(cols).fill(1);
-  }
-  function draw() {
-    ctx.fillStyle = "rgba(10,10,15,0.09)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#00ff64";
-    ctx.font = "12px monospace";
-    for (let i = 0; i < drops.length; i++) {
-      const text = letters[Math.floor(Math.random() * letters.length)];
-      ctx.fillText(text, i * 14, drops[i] * 14);
-      if (drops[i] * 14 > canvas.height && Math.random() > 0.975) {
-        drops[i] = 0;
-      }
+// ── tab switching ──────────────────────────────────────────────────────────
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const panels = ['status','buds','config','voices','reports'];
+    t.classList.toggle('active', panels[i]===id);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>{
+    p.classList.toggle('active', p.id==='tab-'+id);
+  });
+  if(id==='voices') loadVoicesDash();
+}
+
+// ── background canvas ──────────────────────────────────────────────────────
+(function(){
+  const c = document.getElementById('bg-canvas');
+  const x = c.getContext('2d');
+  let cols, drops;
+  const chars = '01#@░▒'.split('');
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#00ff88';
+  function resize(){ c.width=window.innerWidth; c.height=window.innerHeight; cols=Math.floor(c.width/18); drops=Array(cols).fill(1); }
+  function draw(){
+    x.fillStyle='rgba(6,6,15,0.08)';
+    x.fillRect(0,0,c.width,c.height);
+    x.fillStyle=accent;
+    x.font='12px monospace';
+    drops.forEach((d,i)=>{
+      x.fillText(chars[Math.random()*chars.length|0],i*18,d*18);
+      if(d*18>c.height&&Math.random()>0.975)drops[i]=0;
       drops[i]++;
-    }
+    });
     requestAnimationFrame(draw);
   }
-  window.addEventListener("resize", resize);
-  resize();
-  draw();
+  window.addEventListener('resize',resize); resize(); draw();
+})();
+
+// ── live status polling ────────────────────────────────────────────────────
+function applyStatus(s){
+  const $ = id => document.getElementById(id);
+  if($('s-bud'))     $('s-bud').textContent     = s.current_bud || '—';
+  if($('s-conn'))    $('s-conn').textContent    = s.connectivity_mode || '—';
+  if($('s-plugins')) $('s-plugins').textContent = s.plugin_count ?? '—';
+  if($('s-listen'))  $('s-listen').textContent  = s.is_listening ? '🎙 Active' : '—';
+  if($('s-running')) $('s-running').textContent = s.is_running ? '✅ Yes' : '⛔ No';
+  const pct = s.battery?.percentage ?? 100;
+  if($('s-batt'))    $('s-batt').textContent    = pct + '%' + (s.battery?.charging ? ' ⚡' : '');
+  if($('batt-fill')) $('batt-fill').style.width = pct + '%';
+  if($('thought-ticker') && s.last_ai_thought){
+    $('thought-ticker').textContent = s.last_ai_thought;
+  }
+  // live dot blink
+  const dot = $('live-dot');
+  if(dot){ dot.style.color = s.is_running ? 'var(--neon)' : 'var(--muted)'; }
+}
+setInterval(async ()=>{
+  try { const r=await fetch('/api/status'); applyStatus(await r.json()); } catch(_){}
+}, 4000);
+
+// ── voices dashboard ───────────────────────────────────────────────────────
+async function loadVoicesDash(){
+  const grid = document.getElementById('voice-cards-dash');
+  if(!grid || grid.dataset.loaded) return;
+  try {
+    const r = await fetch('/api/voices');
+    const d = await r.json();
+    grid.innerHTML = d.voices.map(v=>`
+      <div class="card" style="text-align:center;padding:1rem 0.75rem">
+        <div style="font-size:1.4rem;margin-bottom:0.3rem">${v.gender==='Male'?'👨':'👩'}</div>
+        <div style="font-weight:700;font-size:0.9rem">${v.name}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.6rem">${v.lang} · ${v.style}</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.75rem">${v.size_mb} MB</div>
+        <div id="vd-${v.id}">
+          ${v.downloaded
+            ? '<span style="color:var(--neon);font-size:0.78rem">✓ Downloaded</span>'
+            : `<button class="btn btn-sm" onclick="dashDownloadVoice('${v.id}',this)">⬇ Download</button>`}
+        </div>
+      </div>`).join('');
+    grid.dataset.loaded = '1';
+  } catch(_){
+    grid.innerHTML = '<p class="empty-msg">Could not load voices.</p>';
+  }
+}
+
+async function dashDownloadVoice(vid, btn){
+  btn.disabled = true; btn.textContent = '⏳…';
+  try {
+    await fetch('/api/voices/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({voice_id:vid})});
+    const iv = setInterval(async ()=>{
+      const r = await fetch('/api/voices/status');
+      const all = await r.json();
+      const s = all[vid];
+      if(!s) return;
+      if(s.status==='done'){ clearInterval(iv); document.getElementById('vd-'+vid).innerHTML='<span style="color:var(--neon);font-size:0.78rem">✓ Downloaded</span>'; }
+      else if(s.status==='error'){ clearInterval(iv); btn.textContent='✗ Failed'; btn.disabled=false; }
+      else { btn.textContent=`⏳ ${s.pct||0}%`; }
+    }, 1500);
+  } catch(_){ btn.textContent='✗ Error'; btn.disabled=false; }
+}
 </script>
 </body>
 </html>

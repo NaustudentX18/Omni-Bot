@@ -9,12 +9,20 @@ echo "║   NXTGENAI CYBERPUNK PI DEPLOYMENT INITIALIZER     ║"
 echo "╚════════════════════════════════════════════════════╝"
 echo ""
 
+# ── Python version guard ──────────────────────────────────────────────────────
+python3 -c "import sys; assert sys.version_info >= (3, 10)" 2>/dev/null || {
+    echo "❌ Python 3.10 or newer is required."
+    echo "   Current: $(python3 --version 2>&1)"
+    exit 1
+}
+echo "✅ Python $(python3 -c 'import sys; print(*sys.version_info[:2], sep=".")')"
+
 # Update system
 echo "📦 Updating system packages..."
 sudo apt-get update
 sudo apt-get upgrade -y
 
-# Install dependencies
+# ── Required system packages ──────────────────────────────────────────────────
 echo "📥 Installing system dependencies..."
 sudo apt-get install -y \
     python3 \
@@ -27,12 +35,9 @@ sudo apt-get install -y \
     unzip \
     nmap \
     aircrack-ng \
-    hcxpcaptool \
+    hcxtools \
     dnsrecon \
     nikto \
-    gobuster \
-    feroxbuster \
-    theharvester \
     hydra \
     sqlmap \
     espeak-ng \
@@ -43,23 +48,29 @@ sudo apt-get install -y \
     spi-tools \
     i2c-tools \
     libatlas-base-dev \
-    libjasper-dev \
-    libjasper1 \
-    libharfbuzz0b \
-    libwebp6 \
-    libtiff5 \
     libopenjp2-7 \
     libopenblas0
+
+# ── Optional security tools (not in all distro repos — non-fatal) ─────────────
+echo "🔧 Installing optional security tools (failures are non-fatal)..."
+for pkg in gobuster feroxbuster theharvester; do
+    sudo apt-get install -y "$pkg" 2>/dev/null \
+        && echo "  ✅ $pkg" \
+        || echo "  ⚠️  $pkg not found in repos — install manually if needed"
+done
 
 # Enable SPI and I2C
 echo "⚙️  Enabling SPI and I2C..."
 sudo raspi-config nonint do_spi 0
 sudo raspi-config nonint do_i2c 0
 
-# Install Python dependencies
-echo "🐍 Installing Python packages..."
-pip3 install --upgrade pip
-pip3 install -r requirements.txt
+# ── Python virtual environment ────────────────────────────────────────────────
+echo "🐍 Setting up Python virtual environment..."
+python3 -m venv venv
+# shellcheck source=/dev/null
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 
 # Create runtime directories
 mkdir -p config models logs reports
@@ -115,10 +126,14 @@ echo ""
 
 echo "✅ Jarvis-Bud setup complete!"
 echo ""
-echo "🚀 To start Jarvis-Bud, run:"
+echo "🚀 To start Jarvis-Bud, activate the venv first:"
+echo "   source venv/bin/activate"
 echo "   python3 -m jarvis_bud.main"
 echo ""
+echo "   Or if installed via pip:"
+echo "   jarvis-bud"
+echo ""
 echo "📦 To export encrypted report package to USB:"
-echo "   python3 main.py export"
+echo "   source venv/bin/activate && python3 main.py export"
 echo ""
 echo "📖 For more information, see README.md"

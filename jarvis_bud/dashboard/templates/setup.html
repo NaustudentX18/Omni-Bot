@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omni-Bot Setup</title>
+  <style>
+    :root {
+      --bg: #06060f;
+      --surface: rgba(14,14,26,0.95);
+      --border: #1a2233;
+      --text: #d2dce6;
+      --muted: #5a6a7a;
+      --accent: #00ff88;
+      --accent2: #00bfff;
+      --danger: #ff4466;
+      --warn: #ffcc44;
+      --radius: 14px;
+      --card-radius: 18px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── background canvas ── */
+    #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── layout ── */
+    #wizard {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ── header ── */
+    .wiz-header { text-align: center; margin-bottom: 2.5rem; }
+    .wiz-logo { font-size: 3rem; display: block; margin-bottom: 0.4rem; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .wiz-header h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.5px; }
+    .wiz-header p { color: var(--muted); margin-top: 0.3rem; font-size: 0.95rem; }
+
+    /* ── step progress bar ── */
+    .progress-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+      row-gap: 0.5rem;
+    }
+    .step-dot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+    }
+    .step-dot .dot {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: #0c0c1a;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      transition: all 0.3s;
+      position: relative;
+      z-index: 1;
+    }
+    .step-dot.active .dot   { border-color: var(--accent); background: rgba(0,255,136,0.15); color: var(--accent); box-shadow: 0 0 14px rgba(0,255,136,0.4); }
+    .step-dot.done .dot     { border-color: var(--accent2); background: rgba(0,191,255,0.15); color: var(--accent2); }
+    .step-dot .label        { font-size: 0.6rem; color: var(--muted); margin-top: 4px; text-align: center; max-width: 56px; line-height: 1.2; }
+    .step-dot.active .label { color: var(--accent); }
+    .step-dot.done .label   { color: var(--accent2); }
+    .step-line {
+      width: 40px; height: 2px;
+      background: var(--border);
+      margin-bottom: 18px;
+      transition: background 0.3s;
+    }
+    .step-line.done { background: var(--accent2); }
+
+    /* ── step panels ── */
+    .step-panel { display: none; animation: fadeUp 0.35s ease; }
+    .step-panel.active { display: block; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+    .step-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.3rem;
+    }
+    .step-subtitle {
+      color: var(--muted);
+      margin-bottom: 1.8rem;
+      font-size: 0.95rem;
+    }
+
+    /* ── bud cards grid ── */
+    .bud-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.9rem;
+    }
+    .bud-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 1.2rem 0.9rem 1rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.22s;
+      position: relative;
+      overflow: hidden;
+    }
+    .bud-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, var(--bud-color, #00ff88) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .bud-card:hover { border-color: var(--bud-color, var(--accent)); transform: translateY(-3px); }
+    .bud-card:hover::before { opacity: 0.08; }
+    .bud-card.selected {
+      border-color: var(--bud-color, var(--accent));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--bud-color, var(--accent)) 30%, transparent);
+    }
+    .bud-card.selected::before { opacity: 0.12; }
+    .bud-face   { font-size: 2.6rem; display: block; margin-bottom: 0.5rem; line-height: 1; }
+    .bud-name   { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.15rem; }
+    .bud-tag    { font-size: 0.65rem; color: var(--muted); line-height: 1.3; }
+    .bud-check  {
+      position: absolute; top: 8px; right: 8px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: none;
+      align-items: center; justify-content: center;
+      font-size: 0.6rem;
+    }
+    .bud-card.selected .bud-check { display: flex; }
+
+    /* ── model cards ── */
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.9rem;
+    }
+    .model-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 1.2rem;
+      cursor: pointer;
+      transition: all 0.22s;
+      position: relative;
+    }
+    .model-card:hover { border-color: var(--accent2); }
+    .model-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,255,136,0.2); }
+    .model-badge {
+      position: absolute; top: 10px; right: 10px;
+      padding: 2px 8px; border-radius: 20px;
+      font-size: 0.6rem; font-weight: 700;
+      background: rgba(0,255,136,0.15); color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    .model-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.15rem; }
+    .model-desc  { font-size: 0.77rem; color: var(--muted); margin-bottom: 0.8rem; line-height: 1.4; }
+    .model-meta  { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .meta-chip {
+      font-size: 0.65rem; padding: 2px 7px;
+      border-radius: 20px; background: #111827;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .meta-chip.speed  { border-color: #1a3a1a; color: #44dd88; }
+    .meta-chip.quality{ border-color: #1a2a3a; color: #44aaff; }
+    .meta-chip.size   { border-color: #2a2a1a; color: #ddaa44; }
+    .dl-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.65rem; padding: 2px 8px;
+      border-radius: 20px; margin-top: 0.5rem;
+      background: rgba(0,191,255,0.1); color: var(--accent2);
+      border: 1px solid var(--accent2);
+    }
+
+    /* ── provider cards ── */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .provider-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 1.1rem;
+      cursor: pointer;
+      transition: all 0.22s;
+      position: relative;
+    }
+    .provider-card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+    .provider-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,255,136,0.2); }
+    .provider-icon  { font-size: 1.6rem; margin-bottom: 0.4rem; display: block; }
+    .provider-name  { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .provider-desc  { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+    .free-chip {
+      position: absolute; top: 8px; right: 8px;
+      padding: 1px 6px; border-radius: 10px;
+      font-size: 0.58rem; font-weight: 700;
+      background: rgba(0,255,136,0.12); color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    #api-key-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.2rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    #api-key-section.visible { display: block; }
+
+    /* ── voice cards ── */
+    .voice-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 0.9rem;
+    }
+    .voice-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--card-radius);
+      padding: 1.1rem;
+      cursor: pointer;
+      transition: all 0.22s;
+      position: relative;
+    }
+    .voice-card:hover { border-color: var(--accent2); }
+    .voice-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,255,136,0.2); }
+    .voice-name   { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.1rem; }
+    .voice-lang   { font-size: 0.68rem; color: var(--muted); margin-bottom: 0.6rem; }
+    .voice-pills  { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+    .voice-pill   {
+      font-size: 0.62rem; padding: 2px 7px;
+      border-radius: 10px; border: 1px solid var(--border); color: var(--muted);
+    }
+    .voice-pill.m  { border-color: #1a2a3a; color: #66aaff; }
+    .voice-pill.f  { border-color: #2a1a2a; color: #ff88cc; }
+    .dl-btn {
+      font-size: 0.72rem; padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--accent2);
+      background: rgba(0,191,255,0.08);
+      color: var(--accent2);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .dl-btn:hover { background: rgba(0,191,255,0.18); }
+    .dl-btn:disabled { opacity: 0.4; cursor: default; }
+    .dl-done { color: var(--accent); font-size: 0.72rem; }
+
+    /* ── form elements ── */
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.3rem; }
+    .field input, .field select {
+      width: 100%;
+      background: #0a0f1a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(0,191,255,0.1);
+    }
+    .field input[type=password] { letter-spacing: 0.1em; }
+
+    /* ── summary card ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem;
+    }
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .summary-card .s-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }
+    .summary-card .s-val   { font-size: 1.1rem; font-weight: 700; }
+
+    /* ── nav buttons ── */
+    .nav-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2rem;
+      gap: 1rem;
+    }
+    .btn {
+      padding: 0.65rem 1.4rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid var(--border);
+      background: #101520;
+      color: var(--text);
+    }
+    .btn:hover { background: #1a2030; }
+    .btn-primary {
+      background: linear-gradient(135deg, #00cc66, #0099ff);
+      border-color: transparent;
+      color: #000;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,255,136,0.3); }
+    .btn-launch {
+      background: linear-gradient(135deg, #00ff88, #00d4ff);
+      border-color: transparent;
+      color: #000;
+      font-size: 1.05rem;
+      padding: 0.85rem 2.2rem;
+      width: 100%;
+    }
+    .btn-launch:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,255,136,0.4); }
+    .btn:disabled { opacity: 0.4; cursor: default; transform: none !important; box-shadow: none !important; }
+
+    /* ── notice box ── */
+    .notice {
+      background: rgba(255,204,68,0.07);
+      border: 1px solid rgba(255,204,68,0.25);
+      border-radius: var(--radius);
+      padding: 0.9rem 1rem;
+      font-size: 0.82rem;
+      color: var(--warn);
+      margin-bottom: 1.2rem;
+    }
+    .notice a { color: var(--accent2); }
+
+    /* ── saving overlay ── */
+    #saving-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(6,6,15,0.92);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 1rem;
+    }
+    #saving-overlay.show { display: flex; }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #saving-overlay p { color: var(--accent); font-size: 1rem; }
+  </style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="wizard">
+
+  <div class="wiz-header">
+    <span class="wiz-logo">🤖</span>
+    <h1>Welcome to Omni-Bot</h1>
+    <p>Let's set up your personal AI companion — takes about 2 minutes.</p>
+  </div>
+
+  <!-- step progress -->
+  <div class="progress-bar" id="progress-bar">
+    <div class="step-dot active" data-step="0"><div class="dot">1</div><div class="label">Your Bud</div></div>
+    <div class="step-line" id="line-0"></div>
+    <div class="step-dot" data-step="1"><div class="dot">2</div><div class="label">Offline AI</div></div>
+    <div class="step-line" id="line-1"></div>
+    <div class="step-dot" data-step="2"><div class="dot">3</div><div class="label">Cloud AI</div></div>
+    <div class="step-line" id="line-2"></div>
+    <div class="step-dot" data-step="3"><div class="dot">4</div><div class="label">Voice</div></div>
+    <div class="step-line" id="line-3"></div>
+    <div class="step-dot" data-step="4"><div class="dot">5</div><div class="label">Network</div></div>
+    <div class="step-line" id="line-4"></div>
+    <div class="step-dot" data-step="5"><div class="dot">6</div><div class="label">Launch</div></div>
+  </div>
+
+  <!-- ── STEP 0: PICK YOUR BUD ── -->
+  <div class="step-panel active" id="step-0">
+    <div class="step-title">Choose your Bud 🤝</div>
+    <div class="step-subtitle">This is the personality your Omni-Bot will have. You can change it anytime.</div>
+    <div class="bud-grid" id="bud-grid">
+      {% for bud in buds %}
+      <div class="bud-card" data-id="{{ bud.id }}"
+           data-name="{{ bud.name }}"
+           data-prompt="{{ bud.system_prompt | e }}"
+           data-color="{{ bud.ui_accent_color }}"
+           style="--bud-color: {{ bud.ui_accent_color }}"
+           onclick="selectBud(this)">
+        <div class="bud-check">✓</div>
+        <span class="bud-face">{{ bud.face }}</span>
+        <div class="bud-name">{{ bud.name }}</div>
+        <div class="bud-tag">{{ bud.tagline }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="nav-row">
+      <span></span>
+      <button class="btn btn-primary" onclick="nextStep()" id="next-0">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 1: OFFLINE MODEL ── -->
+  <div class="step-panel" id="step-1">
+    <div class="step-title">Offline AI Brain 🧠</div>
+    <div class="step-subtitle">This model runs directly on your device — no internet needed. Choose based on your Pi's RAM.</div>
+    <div class="notice">💡 Models download via <code>setup.sh</code> or you can trigger a download from here. Gemma 2 is recommended for Pi Zero 2 W.</div>
+    <div class="model-grid" id="model-grid">
+      {% for m in offline_models %}
+      <div class="model-card{% if m.recommended %} selected{% endif %}"
+           data-id="{{ m.id }}"
+           data-filename="{{ m.filename }}"
+           onclick="selectModel(this)">
+        {% if m.recommended %}<span class="model-badge">★ Recommended</span>{% endif %}
+        <div class="model-title">{{ m.name }}</div>
+        <div class="model-desc">{{ m.description }}</div>
+        <div class="model-meta">
+          <span class="meta-chip speed">⚡ {{ m.speed }}</span>
+          <span class="meta-chip quality">✦ {{ m.quality }}</span>
+          <span class="meta-chip size">{{ m.size }}</span>
+          <span class="meta-chip">RAM {{ m.ram }}</span>
+        </div>
+        <div id="dl-status-{{ m.id }}" style="margin-top:0.5rem"></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="nav-row">
+      <button class="btn" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: CLOUD AI ── -->
+  <div class="step-panel" id="step-2">
+    <div class="step-title">Cloud AI ☁️</div>
+    <div class="step-subtitle">Connect to a cloud provider for more powerful responses when online. 100% optional.</div>
+    <div class="provider-grid">
+      {% for p in cloud_providers %}
+      <div class="provider-card{% if p.id == 'none' %} selected{% endif %}"
+           data-id="{{ p.id }}"
+           data-key-url="{{ p.key_url or '' }}"
+           data-placeholder="{{ p.key_placeholder or '' }}"
+           data-default-model="{{ p.default_model or '' }}"
+           data-models="{{ p.models | tojson | e }}"
+           onclick="selectProvider(this)">
+        {% if p.free_tier and p.id != 'none' %}<span class="free-chip">FREE</span>{% endif %}
+        <span class="provider-icon">{{ p.icon }}</span>
+        <div class="provider-name">{{ p.name }}</div>
+        <div class="provider-desc">{{ p.description }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div id="api-key-section">
+      <div class="field">
+        <label id="api-key-label">API Key</label>
+        <input type="password" id="api-key-input" placeholder="Paste your API key here">
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <select id="model-select"></select>
+      </div>
+      <p style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem">
+        Get a key: <a id="key-url-link" href="#" target="_blank" style="color:var(--accent2)">Open provider →</a>
+      </p>
+    </div>
+    <div class="nav-row">
+      <button class="btn" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 3: VOICE ── -->
+  <div class="step-panel" id="step-3">
+    <div class="step-title">Your Bud's Voice 🎙️</div>
+    <div class="step-subtitle">Pick a voice for your Bud. Click Download to get it onto your device.</div>
+    <div class="voice-grid" id="voice-grid">
+      {% for v in voices %}
+      <div class="voice-card{% if v.id == 'en_US-lessac-medium' %} selected{% endif %}"
+           data-id="{{ v.id }}"
+           onclick="selectVoice(this)">
+        <div class="voice-name">{{ v.name }}</div>
+        <div class="voice-lang">{{ v.lang }}</div>
+        <div class="voice-pills">
+          <span class="voice-pill {{ 'm' if v.gender == 'Male' else 'f' }}">{{ v.gender }}</span>
+          <span class="voice-pill">{{ v.style }}</span>
+          <span class="voice-pill">{{ v.size_mb }} MB</span>
+        </div>
+        <div id="voice-dl-{{ v.id }}">
+          {% if v.id in downloaded_voices %}
+            <span class="dl-done">✓ Downloaded</span>
+          {% else %}
+            <button class="dl-btn" onclick="downloadVoice(event,'{{ v.id }}')">⬇ Download</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="nav-row">
+      <button class="btn" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 4: NETWORK ── -->
+  <div class="step-panel" id="step-4">
+    <div class="step-title">Network Setup 📡</div>
+    <div class="step-subtitle">Optional — skip if you're using ethernet or setting up WiFi separately.</div>
+    <div class="field">
+      <label>WiFi Network (SSID)</label>
+      <input type="text" id="wifi-ssid" placeholder="Your network name">
+    </div>
+    <div class="field">
+      <label>WiFi Password</label>
+      <input type="password" id="wifi-password" placeholder="Network password">
+    </div>
+    <div class="field">
+      <label>Device Hostname</label>
+      <input type="text" id="hostname" value="omnibot-zero" placeholder="omnibot-zero">
+    </div>
+    <p style="font-size:0.78rem;color:var(--muted);margin-top:-0.5rem">
+      Your device will be reachable at <code id="hostname-preview">http://omnibot-zero.local:8080</code>
+    </p>
+    <div class="nav-row">
+      <button class="btn" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 5: LAUNCH ── -->
+  <div class="step-panel" id="step-5">
+    <div class="step-title">All Set! 🚀</div>
+    <div class="step-subtitle">Here's what you've configured. Hit Launch to bring your Bud to life.</div>
+    <div class="summary-grid" id="summary-grid" style="margin-bottom:1.5rem">
+      <div class="summary-card">
+        <div class="s-label">Your Bud</div>
+        <div class="s-val" id="sum-bud">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="s-label">Offline Model</div>
+        <div class="s-val" id="sum-model">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="s-label">Cloud AI</div>
+        <div class="s-val" id="sum-cloud">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="s-label">Voice</div>
+        <div class="s-val" id="sum-voice">—</div>
+      </div>
+      <div class="summary-card" style="grid-column:1/-1">
+        <div class="s-label">Network</div>
+        <div class="s-val" id="sum-network">—</div>
+      </div>
+    </div>
+    <button class="btn btn-launch" onclick="saveLaunch()">🚀 Launch Omni-Bot</button>
+    <div class="nav-row" style="justify-content:flex-start;margin-top:1rem">
+      <button class="btn" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+</div><!-- /wizard -->
+
+<div id="saving-overlay">
+  <div class="spinner"></div>
+  <p>Saving your configuration…</p>
+</div>
+
+<script>
+// ── state ──────────────────────────────────────────────────────────────────
+const state = {
+  step: 0,
+  totalSteps: 6,
+  bud:    { id: 'fogo', name: 'Fogo', system_prompt: '', accent: '#00FF66' },
+  model:  { id: 'gemma-2-2b-it-Q4_K_M', filename: 'gemma-2-2b-it-Q4_K_M.gguf' },
+  cloud:  { provider: 'none', api_key: '', model: '' },
+  voice:  { id: 'en_US-lessac-medium' },
+  net:    { ssid: '', password: '', hostname: 'omnibot-zero' },
+};
+
+// ── background canvas ──────────────────────────────────────────────────────
+(function(){
+  const c = document.getElementById('bg-canvas');
+  const x = c.getContext('2d');
+  let cols, drops;
+  const chars = '01#@░▒▓'.split('');
+  function resize(){
+    c.width = window.innerWidth; c.height = window.innerHeight;
+    cols = Math.floor(c.width / 18);
+    drops = Array(cols).fill(1);
+  }
+  function draw(){
+    x.fillStyle = 'rgba(6,6,15,0.07)';
+    x.fillRect(0,0,c.width,c.height);
+    x.fillStyle = 'rgba(0,255,136,0.18)';
+    x.font = '13px monospace';
+    drops.forEach((d,i)=>{
+      x.fillText(chars[Math.random()*chars.length|0], i*18, d*18);
+      if(d*18 > c.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    });
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', resize);
+  resize(); draw();
+})();
+
+// ── step navigation ────────────────────────────────────────────────────────
+function goToStep(n){
+  document.querySelectorAll('.step-panel').forEach((p,i)=>{
+    p.classList.toggle('active', i===n);
+  });
+  document.querySelectorAll('.step-dot').forEach((d,i)=>{
+    d.classList.toggle('active', i===n);
+    d.classList.toggle('done', i<n);
+  });
+  document.querySelectorAll('.step-line').forEach((l,i)=>{
+    l.classList.toggle('done', i<n);
+  });
+  state.step = n;
+  if(n === 5) buildSummary();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function nextStep(){ if(state.step < state.totalSteps-1) goToStep(state.step+1); }
+function prevStep(){ if(state.step > 0) goToStep(state.step-1); }
+
+// click on step dot to jump back
+document.querySelectorAll('.step-dot').forEach(dot=>{
+  dot.addEventListener('click', ()=>{
+    const t = parseInt(dot.dataset.step);
+    if(t < state.step) goToStep(t);
+  });
+});
+
+// ── bud selection ──────────────────────────────────────────────────────────
+function selectBud(card){
+  document.querySelectorAll('.bud-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  state.bud.id      = card.dataset.id;
+  state.bud.name    = card.dataset.name;
+  state.bud.system_prompt = card.dataset.prompt;
+  state.bud.accent  = card.dataset.color;
+  // tint the accent live
+  document.documentElement.style.setProperty('--accent', state.bud.accent);
+}
+// default select first bud on load
+(()=>{
+  const first = document.querySelector('.bud-card');
+  if(first) selectBud(first);
+})();
+
+// ── model selection ────────────────────────────────────────────────────────
+function selectModel(card){
+  document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  state.model.id       = card.dataset.id;
+  state.model.filename = card.dataset.filename;
+}
+// pre-check downloaded models
+async function refreshModelStatus(){
+  try {
+    const r = await fetch('/api/models');
+    const d = await r.json();
+    d.local.forEach(m=>{
+      const el = document.getElementById('dl-status-'+m.id);
+      if(!el) return;
+      if(m.downloaded){
+        el.innerHTML = '<span class="dl-done">✓ On device</span>';
+      } else if(m.url) {
+        el.innerHTML = `<button class="dl-btn" onclick="downloadModel(event,'${m.id}','${m.url}')">⬇ Download</button>`;
+      }
+    });
+  } catch(_){}
+}
+async function downloadModel(e, id, url){
+  e.stopPropagation();
+  const btn = e.target;
+  btn.disabled = true; btn.textContent = '⏳ Starting…';
+  // For model downloads we show instructions since they're large
+  const el = document.getElementById('dl-status-'+id);
+  el.innerHTML = '<span style="font-size:0.72rem;color:var(--warn)">Run: <code>bash setup.sh</code> to download models</span>';
+}
+refreshModelStatus();
+
+// ── provider selection ─────────────────────────────────────────────────────
+function selectProvider(card){
+  document.querySelectorAll('.provider-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  const id = card.dataset.id;
+  state.cloud.provider = id;
+  state.cloud.api_key  = '';
+  state.cloud.model    = card.dataset.defaultModel || '';
+
+  const section  = document.getElementById('api-key-section');
+  const keyInput = document.getElementById('api-key-input');
+  const modelSel = document.getElementById('model-select');
+  const keyLink  = document.getElementById('key-url-link');
+  const keyLabel = document.getElementById('api-key-label');
+
+  if(id === 'none'){
+    section.classList.remove('visible');
+  } else {
+    section.classList.add('visible');
+    keyInput.placeholder = card.dataset.placeholder || 'API key';
+    keyLabel.textContent = card.dataset.placeholder ? `API Key (starts with ${card.dataset.placeholder.split('...')[0]})` : 'API Key';
+    keyLink.href = card.dataset.keyUrl || '#';
+
+    let models = [];
+    try { models = JSON.parse(card.dataset.models || '[]'); } catch(_){}
+    modelSel.innerHTML = models.map(m=>`<option value="${m}"${m===state.cloud.model?' selected':''}>${m}</option>`).join('');
+    keyInput.value = '';
+    keyInput.addEventListener('input', ()=>{ state.cloud.api_key = keyInput.value.trim(); });
+    modelSel.addEventListener('change', ()=>{ state.cloud.model = modelSel.value; });
+  }
+}
+
+// ── voice selection ────────────────────────────────────────────────────────
+function selectVoice(card){
+  document.querySelectorAll('.voice-card').forEach(c=>c.classList.remove('selected'));
+  card.classList.add('selected');
+  state.voice.id = card.dataset.id;
+}
+
+async function downloadVoice(e, voiceId){
+  e.stopPropagation();
+  const btn = e.target;
+  btn.disabled = true; btn.textContent = '⏳ Starting…';
+  try {
+    const r = await fetch('/api/voices/download', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({voice_id: voiceId}),
+    });
+    const d = await r.json();
+    if(d.ok) pollVoiceStatus(voiceId, btn);
+    else { btn.textContent = '✗ Error'; btn.disabled = false; }
+  } catch(_){ btn.textContent = '✗ Error'; btn.disabled = false; }
+}
+
+async function pollVoiceStatus(voiceId, btn){
+  const interval = setInterval(async ()=>{
+    try {
+      const r = await fetch('/api/voices/status');
+      const all = await r.json();
+      const s = all[voiceId];
+      if(!s) return;
+      if(s.status === 'done'){
+        clearInterval(interval);
+        const el = document.getElementById('voice-dl-'+voiceId);
+        if(el) el.innerHTML = '<span class="dl-done">✓ Downloaded</span>';
+      } else if(s.status === 'error'){
+        clearInterval(interval);
+        btn.textContent = '✗ Failed'; btn.disabled = false;
+      } else {
+        btn.textContent = `⏳ ${s.pct||0}%`;
+      }
+    } catch(_){}
+  }, 1500);
+}
+
+// ── hostname preview ───────────────────────────────────────────────────────
+document.getElementById('hostname').addEventListener('input', function(){
+  state.net.hostname = this.value || 'omnibot-zero';
+  document.getElementById('hostname-preview').textContent = `http://${state.net.hostname}.local:8080`;
+});
+
+// ── summary ────────────────────────────────────────────────────────────────
+function buildSummary(){
+  state.net.ssid     = document.getElementById('wifi-ssid').value.trim();
+  state.net.password = document.getElementById('wifi-password').value.trim();
+  state.net.hostname = document.getElementById('hostname').value.trim() || 'omnibot-zero';
+
+  document.getElementById('sum-bud').textContent    = state.bud.name;
+  document.getElementById('sum-model').textContent  = state.model.id;
+  document.getElementById('sum-cloud').textContent  = state.cloud.provider === 'none' ? 'Offline only' : state.cloud.provider;
+  document.getElementById('sum-voice').textContent  = state.voice.id;
+  document.getElementById('sum-network').textContent= state.net.ssid ? `${state.net.ssid} — ${state.net.hostname}.local` : 'No WiFi configured';
+}
+
+// ── save & launch ──────────────────────────────────────────────────────────
+async function saveLaunch(){
+  document.getElementById('saving-overlay').classList.add('show');
+  state.net.ssid     = document.getElementById('wifi-ssid').value.trim();
+  state.net.password = document.getElementById('wifi-password').value.trim();
+  state.net.hostname = document.getElementById('hostname').value.trim() || 'omnibot-zero';
+
+  const payload = {
+    bud_id:              state.bud.id,
+    bud_name:            state.bud.name,
+    bud_system_prompt:   state.bud.system_prompt,
+    bud_accent_color:    state.bud.accent,
+    offline_model_file:  state.model.filename,
+    cloud_provider:      state.cloud.provider,
+    cloud_api_key:       state.cloud.api_key,
+    cloud_model:         state.cloud.model,
+    voice_id:            state.voice.id,
+    wifi_ssid:           state.net.ssid,
+    wifi_password:       state.net.password,
+    hostname:            state.net.hostname,
+  };
+
+  try {
+    const r = await fetch('/setup/save', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if(d.ok){
+      window.location.href = '/';
+    } else {
+      document.getElementById('saving-overlay').classList.remove('show');
+      alert('Error saving: ' + (d.error || 'unknown'));
+    }
+  } catch(err){
+    document.getElementById('saving-overlay').classList.remove('show');
+    alert('Network error: ' + err);
+  }
+}
+</script>
+</body>
+</html>
