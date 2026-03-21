@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple
 
 import requests
 
@@ -30,7 +30,7 @@ class LocalOllamaClient:
 
     def __init__(
         self,
-        candidate_hosts: Optional[Iterable[str]] = None,
+        candidate_hosts: Iterable[str] | None = None,
         port: int = 11434,
         max_ping_ms: float = 100.0,
         request_timeout: float = 8.0,
@@ -50,11 +50,11 @@ class LocalOllamaClient:
                 "naspi",
             ]
         )
-        self.endpoint: Optional[OllamaEndpoint] = None
-        self.model: Optional[str] = None
+        self.endpoint: OllamaEndpoint | None = None
+        self.model: str | None = None
 
     @staticmethod
-    def _extract_ping_ms(output: str) -> Optional[float]:
+    def _extract_ping_ms(output: str) -> float | None:
         match = re.search(r"time[=<]([0-9.]+)\\s*ms", output)
         if not match:
             return None
@@ -63,7 +63,7 @@ class LocalOllamaClient:
         except ValueError:
             return None
 
-    def ping_host(self, host: str) -> Optional[float]:
+    def ping_host(self, host: str) -> float | None:
         """Return one-way ping roundtrip in ms if reachable."""
         try:
             proc = subprocess.run(
@@ -86,9 +86,9 @@ class LocalOllamaClient:
         except Exception:
             return False
 
-    def scan(self) -> Optional[OllamaEndpoint]:
+    def scan(self) -> OllamaEndpoint | None:
         """Find the first responsive Ollama endpoint under latency target."""
-        best: Optional[Tuple[float, str]] = None
+        best: tuple[float, str] | None = None
 
         for host in self.candidate_hosts:
             latency = self.ping_host(host)
@@ -112,7 +112,7 @@ class LocalOllamaClient:
         self.endpoint = None
         return None
 
-    def list_models(self) -> List[str]:
+    def list_models(self) -> list[str]:
         if not self.endpoint:
             return []
         try:
@@ -126,7 +126,7 @@ class LocalOllamaClient:
         except Exception:
             return []
 
-    def detect_preferred_model(self) -> Optional[str]:
+    def detect_preferred_model(self) -> str | None:
         models = self.list_models()
         for prefix in self.PREFERRED_MODEL_PREFIXES:
             for model in models:
@@ -138,7 +138,7 @@ class LocalOllamaClient:
     def is_available(self) -> bool:
         return self.endpoint is not None
 
-    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str | None:
         """Generate text with local Ollama endpoint."""
         if not self.endpoint:
             return None

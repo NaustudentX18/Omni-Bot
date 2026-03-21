@@ -13,7 +13,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any
 
 
 @dataclass
@@ -28,14 +28,14 @@ class TinyMemory:
     def __init__(self, path: str = "logs/memory.jsonl"):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._items: List[MemoryItem] = self._load_items()
-        self._faiss = None
-        self._encoder = None
-        self._vectors = None
+        self._items: list[MemoryItem] = self._load_items()
+        self._faiss: Any = None
+        self._encoder: Any = None
+        self._vectors: Any = None
         self._enable_vector_backend()
 
-    def _load_items(self) -> List[MemoryItem]:
-        items: List[MemoryItem] = []
+    def _load_items(self) -> list[MemoryItem]:
+        items: list[MemoryItem] = []
         if not self.path.exists():
             return items
         try:
@@ -59,13 +59,15 @@ class TinyMemory:
             return
         try:
             import faiss  # type: ignore
-            from sentence_transformers import SentenceTransformer  # type: ignore
             import numpy as np  # type: ignore
+            from sentence_transformers import SentenceTransformer  # type: ignore
 
             self._faiss = faiss
             self._encoder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
             if self._items:
-                matrix = self._encoder.encode([it.text for it in self._items], normalize_embeddings=True)
+                matrix = self._encoder.encode(
+                    [it.text for it in self._items], normalize_embeddings=True
+                )
                 matrix = np.asarray(matrix, dtype="float32")
                 self._vectors = faiss.IndexFlatIP(matrix.shape[1])
                 self._vectors.add(matrix)
@@ -76,9 +78,11 @@ class TinyMemory:
 
     def _append(self, item: MemoryItem) -> None:
         with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"text": item.text, "meta": item.meta}, ensure_ascii=True) + "\n")
+            handle.write(
+                json.dumps({"text": item.text, "meta": item.meta}, ensure_ascii=True) + "\n"
+            )
 
-    def add(self, text: str, meta: Optional[dict] = None) -> None:
+    def add(self, text: str, meta: dict | None = None) -> None:
         item = MemoryItem(text=text.strip(), meta=meta or {})
         if not item.text:
             return
@@ -96,7 +100,7 @@ class TinyMemory:
             except Exception:
                 pass
 
-    def retrieve(self, query: str, k: int = 3) -> List[MemoryItem]:
+    def retrieve(self, query: str, k: int = 3) -> list[MemoryItem]:
         if not self._items:
             return []
         if self._encoder and self._vectors is not None:
@@ -111,9 +115,9 @@ class TinyMemory:
                 pass
         return self._retrieve_token_overlap(query=query, k=k)
 
-    def _retrieve_token_overlap(self, query: str, k: int) -> List[MemoryItem]:
+    def _retrieve_token_overlap(self, query: str, k: int) -> list[MemoryItem]:
         tokens = set(re.findall(r"[a-zA-Z0-9_]+", query.lower()))
-        scored: List[Tuple[float, MemoryItem]] = []
+        scored: list[tuple[float, MemoryItem]] = []
         for item in self._items:
             item_tokens = set(re.findall(r"[a-zA-Z0-9_]+", item.text.lower()))
             if not item_tokens:

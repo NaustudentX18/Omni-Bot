@@ -10,7 +10,6 @@ import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -35,11 +34,11 @@ class SpeechToTextEngine:
         self.model_root = model_root
         self.sample_rate = sample_rate
         self._fw_model = None
-        self._fw_error: Optional[str] = None
+        self._fw_error: str | None = None
         self._whisper_cli = shutil.which("whisper-cli") or shutil.which("whisper")
         self._whisper_cpp_model = self._discover_whisper_cpp_model()
 
-    def _discover_whisper_cpp_model(self) -> Optional[str]:
+    def _discover_whisper_cpp_model(self) -> str | None:
         model_dir = Path(self.model_root)
         if not model_dir.exists():
             return None
@@ -75,7 +74,9 @@ class SpeechToTextEngine:
             return None
 
     def _write_temp_wav(self, audio_data: bytes) -> str:
-        with tempfile.NamedTemporaryFile(prefix="nxtgenai_stt_", suffix=".wav", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            prefix="nxtgenai_stt_", suffix=".wav", delete=False
+        ) as handle:
             path = handle.name
         with wave.open(path, "wb") as wav_file:
             wav_file.setnchannels(1)
@@ -84,7 +85,7 @@ class SpeechToTextEngine:
             wav_file.writeframes(audio_data)
         return path
 
-    def _transcribe_faster_whisper(self, wav_path: str) -> Optional[STTResult]:
+    def _transcribe_faster_whisper(self, wav_path: str) -> STTResult | None:
         model = self._load_faster_whisper()
         if model is None:
             return None
@@ -102,7 +103,7 @@ class SpeechToTextEngine:
             return None
         return STTResult(text=text, backend="faster-whisper", latency_ms=elapsed)
 
-    def _transcribe_whisper_cpp(self, wav_path: str) -> Optional[STTResult]:
+    def _transcribe_whisper_cpp(self, wav_path: str) -> STTResult | None:
         if not self._whisper_cli or not self._whisper_cpp_model:
             return None
         start = time.monotonic()

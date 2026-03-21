@@ -8,19 +8,21 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 from werkzeug.serving import make_server
 
 if TYPE_CHECKING:
+    from werkzeug.serving import BaseWSGIServer
+
     from jarvis_bud.main import JarvisBud
 
 # ---------------------------------------------------------------------------
 # Static data – voices, models, cloud providers
 # ---------------------------------------------------------------------------
 
-PIPER_VOICES: List[Dict[str, Any]] = [
+PIPER_VOICES: list[dict[str, Any]] = [
     {
         "id": "en_US-lessac-medium",
         "name": "Lessac",
@@ -103,7 +105,7 @@ PIPER_VOICES: List[Dict[str, Any]] = [
     },
 ]
 
-OFFLINE_MODELS: List[Dict[str, Any]] = [
+OFFLINE_MODELS: list[dict[str, Any]] = [
     {
         "id": "gemma-2-2b-it-Q4_K_M",
         "name": "Gemma 2 2B",
@@ -142,7 +144,7 @@ OFFLINE_MODELS: List[Dict[str, Any]] = [
     },
 ]
 
-CLOUD_PROVIDERS: List[Dict[str, Any]] = [
+CLOUD_PROVIDERS: list[dict[str, Any]] = [
     {
         "id": "openrouter",
         "name": "OpenRouter",
@@ -207,7 +209,7 @@ _VOICE_IDS = {v["id"] for v in PIPER_VOICES}
 class DashboardServer:
     """Run a local-only Flask dashboard on port 8080."""
 
-    def __init__(self, app: "JarvisBud", host: str = "127.0.0.1", port: int = 8080):
+    def __init__(self, app: JarvisBud, host: str = "127.0.0.1", port: int = 8080):
         self.app = app
         self.host = host
         self.port = port
@@ -218,16 +220,16 @@ class DashboardServer:
             __name__,
             template_folder=str(root / "templates"),
         )
-        self._server = None
+        self._server: BaseWSGIServer | None = None
         self._thread: threading.Thread | None = None
         # Voice download state: voice_id -> {"status": "downloading"|"done"|"error", "pct": 0-100}
-        self._voice_downloads: Dict[str, Dict[str, Any]] = {}
+        self._voice_downloads: dict[str, dict[str, Any]] = {}
         self._register_routes()
 
-    def _list_reports(self) -> List[str]:
+    def _list_reports(self) -> list[str]:
         return [r.name for r in sorted(self.reports_dir.glob("*.html"), reverse=True)]
 
-    def _scan_local_models(self) -> List[Dict[str, Any]]:
+    def _scan_local_models(self) -> list[dict[str, Any]]:
         models_dir = Path("models")
         result = []
         for m in OFFLINE_MODELS:
@@ -241,49 +243,67 @@ class DashboardServer:
         if models_dir.exists():
             for f in models_dir.glob("*.gguf"):
                 if f.name not in known:
-                    result.append({
-                        "id": f.stem,
-                        "name": f.stem,
-                        "filename": f.name,
-                        "size": f"{f.stat().st_size / 1e9:.1f} GB",
-                        "ram": "?",
-                        "speed": "?",
-                        "quality": "?",
-                        "description": "Locally detected model",
-                        "recommended": False,
-                        "url": None,
-                        "downloaded": True,
-                        "path": str(f),
-                    })
+                    result.append(
+                        {
+                            "id": f.stem,
+                            "name": f.stem,
+                            "filename": f.name,
+                            "size": f"{f.stat().st_size / 1e9:.1f} GB",
+                            "ram": "?",
+                            "speed": "?",
+                            "quality": "?",
+                            "description": "Locally detected model",
+                            "recommended": False,
+                            "url": None,
+                            "downloaded": True,
+                            "path": str(f),
+                        }
+                    )
         return result
 
-    def _scan_downloaded_voices(self) -> List[str]:
+    def _scan_downloaded_voices(self) -> list[str]:
         piper_dir = Path("models/piper")
         if not piper_dir.exists():
             return []
         return [f.stem.replace(".onnx", "") for f in piper_dir.glob("*.onnx")]
 
-    def _download_voice_bg(self, voice: Dict[str, Any]) -> None:
+    def _download_voice_bg(self, voice: dict[str, Any]) -> None:
         vid = voice["id"]
         self._voice_downloads[vid] = {"status": "downloading", "pct": 0}
         piper_dir = Path("models/piper")
         piper_dir.mkdir(parents=True, exist_ok=True)
         try:
             aria = shutil.which("aria2c")
-            for i, (url_key, fname_suffix) in enumerate([
-                ("onnx_url", ".onnx"),
-                ("json_url", ".onnx.json"),
-            ]):
+            for i, (url_key, fname_suffix) in enumerate(
+                [
+                    ("onnx_url", ".onnx"),
+                    ("json_url", ".onnx.json"),
+                ]
+            ):
                 url = voice[url_key]
                 out = piper_dir / f"{vid}{fname_suffix}"
                 if aria:
                     subprocess.run(
-                        [aria, "-c", "-x", "4", "-s", "4", "-d", str(piper_dir),
-                         "-o", out.name, url],
-                        check=True, timeout=600, capture_output=True,
+                        [
+                            aria,
+                            "-c",
+                            "-x",
+                            "4",
+                            "-s",
+                            "4",
+                            "-d",
+                            str(piper_dir),
+                            "-o",
+                            out.name,
+                            url,
+                        ],
+                        check=True,
+                        timeout=600,
+                        capture_output=True,
                     )
                 else:
                     import urllib.request
+
                     urllib.request.urlretrieve(url, str(out))
                 self._voice_downloads[vid]["pct"] = 50 * (i + 1)
             self._voice_downloads[vid] = {"status": "done", "pct": 100}
@@ -313,7 +333,7 @@ class DashboardServer:
         @self._flask.post("/config")
         def update_config():
             form = request.form
-            updates: Dict[str, Any] = {
+            updates: dict[str, Any] = {
                 "openrouter.api_key": form.get("openrouter_api_key", "").strip(),
                 "network.ssid": form.get("wifi_ssid", "").strip(),
                 "network.password": form.get("wifi_password", "").strip(),
@@ -329,10 +349,10 @@ class DashboardServer:
         @self._flask.post("/config/bud")
         def switch_bud():
             form = request.form
-            bud_id     = form.get("bud_id", "").strip()
-            bud_name   = form.get("bud_name", "").strip()
+            bud_id = form.get("bud_id", "").strip()
+            bud_name = form.get("bud_name", "").strip()
             bud_prompt = form.get("bud_prompt", "").strip()
-            bud_color  = form.get("bud_color", "#00FF66").strip()
+            bud_color = form.get("bud_color", "#00FF66").strip()
             if bud_id:
                 self.app.config_manager.set("bud.id", bud_id)
                 self.app.config_manager.set("bud.name", bud_name or bud_id)
@@ -399,10 +419,12 @@ class DashboardServer:
 
         @self._flask.get("/api/models")
         def api_models():
-            return jsonify({
-                "local": self._scan_local_models(),
-                "catalogue": OFFLINE_MODELS,
-            })
+            return jsonify(
+                {
+                    "local": self._scan_local_models(),
+                    "catalogue": OFFLINE_MODELS,
+                }
+            )
 
         # ---- voice API ---------------------------------------------------
 
@@ -434,7 +456,7 @@ class DashboardServer:
         def api_voices_status():
             return jsonify(self._voice_downloads)
 
-    def _load_buds(self) -> List[Dict[str, Any]]:
+    def _load_buds(self) -> list[dict[str, Any]]:
         try:
             buds_path = Path(self.app.buds_path)
             with buds_path.open("r", encoding="utf-8") as fh:
@@ -461,7 +483,7 @@ class DashboardServer:
             self._server = None
 
 
-def _build_config_from_wizard(data: Dict[str, Any]) -> Dict[str, Any]:
+def _build_config_from_wizard(data: dict[str, Any]) -> dict[str, Any]:
     """Convert wizard POST body into full config.json structure."""
     bud_id = str(data.get("bud_id", "fogo")).strip()
     bud_name = str(data.get("bud_name", "Fogo")).strip()
@@ -483,7 +505,7 @@ def _build_config_from_wizard(data: Dict[str, Any]) -> Dict[str, Any]:
     hostname = str(data.get("hostname", "omnibot-zero")).strip() or "omnibot-zero"
 
     # Build openrouter section (used for all cloud providers for now)
-    openrouter_cfg: Optional[Dict] = None
+    openrouter_cfg: dict | None = None
     if cloud_provider != "none" and cloud_api_key:
         openrouter_cfg = {
             "api_key": cloud_api_key,

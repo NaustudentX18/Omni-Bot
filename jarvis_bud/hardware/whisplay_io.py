@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from jarvis_bud.hardware.audio import AudioCodec
 from jarvis_bud.hardware.buttons import ButtonHandler
@@ -29,9 +29,9 @@ class WhisplayIO:
 
     def set_callbacks(
         self,
-        on_button_a: Optional[Callable[[], None]] = None,
-        on_button_b: Optional[Callable[[], None]] = None,
-        on_button_b_long_press: Optional[Callable[[], None]] = None,
+        on_button_a: Callable[[], None] | None = None,
+        on_button_b: Callable[[], None] | None = None,
+        on_button_b_long_press: Callable[[], None] | None = None,
     ):
         if on_button_a:
             self.buttons.on_button_a(on_button_a)

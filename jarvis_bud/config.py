@@ -1,36 +1,38 @@
 """Configuration Manager for Jarvis-Bud."""
 
+import configparser
 import json
 import os
-import configparser
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class ConfigManager:
     """Manage Jarvis-Bud configuration."""
 
-    def __init__(self, config_path: str = "config/config.json", runtime_path: str = "config/config.ini"):
+    def __init__(
+        self, config_path: str = "config/config.json", runtime_path: str = "config/config.ini"
+    ):
         """Initialize config manager.
-        
+
         Args:
             config_path: Path to config.json
         """
         self.config_path = config_path
         self.runtime_path = runtime_path
-        self._config: Dict[str, Any] = {}
+        self._config: dict[str, Any] = {}
         self._runtime = configparser.ConfigParser()
         self.load()
         self.load_runtime()
 
     def load(self) -> bool:
         """Load configuration from file.
-        
+
         Returns:
             True if successful
         """
         try:
             if os.path.exists(self.config_path):
-                with open(self.config_path, "r", encoding="utf-8") as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     self._config = json.load(f)
                 print(f"📂 Config loaded: {self.config_path}")
                 return True
@@ -63,7 +65,7 @@ class ConfigManager:
 
     def save(self) -> bool:
         """Save configuration to file.
-        
+
         Returns:
             True if successful
         """
@@ -79,17 +81,17 @@ class ConfigManager:
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get config value.
-        
+
         Args:
             key: Configuration key (supports dot notation like "bud.name")
             default: Default value if key not found
-            
+
         Returns:
             Config value or default
         """
         keys = key.split(".")
         value = self._config
-        
+
         try:
             for k in keys:
                 value = value[k]
@@ -99,24 +101,24 @@ class ConfigManager:
 
     def set(self, key: str, value: Any):
         """Set config value.
-        
+
         Args:
             key: Configuration key
             value: Value to set
         """
         keys = key.split(".")
         config = self._config
-        
+
         for k in keys[:-1]:
             if k not in config or not isinstance(config.get(k), dict):
                 config[k] = {}
             config = config[k]
-        
+
         config[keys[-1]] = value
 
-    def get_bud(self) -> Optional[Dict]:
+    def get_bud(self) -> dict | None:
         """Get current Bud configuration.
-        
+
         Returns:
             Bud config dict
         """
@@ -124,23 +126,23 @@ class ConfigManager:
 
     def get_bud_system_prompt(self) -> str:
         """Get system prompt for current Bud.
-        
+
         Returns:
             System prompt string
         """
         return self.get("bud.system_prompt", "You are a helpful AI assistant.")
 
-    def get_ollama_url(self) -> Optional[str]:
+    def get_ollama_url(self) -> str | None:
         """Get local Ollama URL.
-        
+
         Returns:
             Ollama server URL or None
         """
         return self.get("connectivity.ollama")
 
-    def get_openrouter_key(self) -> Optional[str]:
+    def get_openrouter_key(self) -> str | None:
         """Get OpenRouter API key.
-        
+
         Returns:
             API key or None
         """
@@ -169,21 +171,21 @@ class ConfigManager:
 
     def is_configured(self) -> bool:
         """Check if system is configured.
-        
+
         Returns:
             True if config exists and has required fields
         """
         required_fields = ["bud.id", "bud.name", "bud.system_prompt"]
         return all(bool(self.get(field)) for field in required_fields)
 
-    def get_display_dict(self) -> Dict:
+    def get_display_dict(self) -> dict:
         """Get a clean config dict suitable for display (removes sensitive data).
-        
+
         Returns:
             Config dict with sensitive data redacted
         """
         display_config = json.loads(json.dumps(self._config))
-        
+
         # Redact API keys
         openrouter_cfg = display_config.get("openrouter")
         if isinstance(openrouter_cfg, dict) and "api_key" in openrouter_cfg:
@@ -192,17 +194,17 @@ class ConfigManager:
                 openrouter_cfg["api_key"] = api_key[:8] + "..." if len(api_key) > 8 else "***"
             else:
                 openrouter_cfg["api_key"] = "***"
-        
+
         return display_config
 
     def print_config(self):
         """Print configuration in a readable format."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("Current Configuration".center(60))
-        print("="*60)
-        
+        print("=" * 60)
+
         config_dict = self.get_display_dict()
-        
+
         def print_dict(d, indent=0):
             for key, value in d.items():
                 if isinstance(value, dict):
@@ -210,6 +212,6 @@ class ConfigManager:
                     print_dict(value, indent + 1)
                 else:
                     print("  " * indent + f"  • {key}: {value}")
-        
+
         print_dict(config_dict)
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")

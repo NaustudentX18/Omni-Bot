@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 from jarvis_bud.ai.brain import EdgeBrain
 
@@ -14,7 +13,7 @@ class AIActionDecision:
     risk: int
     should_execute: bool
     reasoning: str
-    output: Dict[str, object]
+    output: dict[str, object]
 
 
 class ReActCore:

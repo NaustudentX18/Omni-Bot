@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 from jarvis_bud.ai.brain import EdgeBrain
 from jarvis_bud.ai.openrouter_client import OpenRouterClient
@@ -54,16 +53,16 @@ class BudManager:
     def __init__(
         self,
         ollama: LocalOllamaClient,
-        openrouter_key: Optional[str] = None,
-        brain: Optional[EdgeBrain] = None,
+        openrouter_key: str | None = None,
+        brain: EdgeBrain | None = None,
     ):
         self.ollama = ollama
         self.openrouter = OpenRouterClient(api_key=openrouter_key) if openrouter_key else None
         self.brain = brain
-        self.buds: Dict[str, BudProfile] = self._build_buds()
+        self.buds: dict[str, BudProfile] = self._build_buds()
         self.active_bud_id = "fogo"
 
-    def _build_buds(self) -> Dict[str, BudProfile]:
+    def _build_buds(self) -> dict[str, BudProfile]:
         return {
             "fogo": BudProfile(
                 bud_id="fogo",

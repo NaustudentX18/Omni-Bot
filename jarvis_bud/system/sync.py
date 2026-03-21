@@ -7,10 +7,11 @@ import socket
 import threading
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -18,7 +19,7 @@ class SyncPeer:
     name: str
     host: str
     port: int
-    status: Dict[str, object]
+    status: dict[str, object]
 
 
 class MultiDeviceSync:
@@ -26,7 +27,7 @@ class MultiDeviceSync:
 
     def __init__(
         self,
-        get_state: Callable[[], Dict[str, object]],
+        get_state: Callable[[], dict[str, object]],
         add_target: Callable[[str], None],
         reports_dir: str = "reports",
         port: int = 8091,
@@ -38,10 +39,10 @@ class MultiDeviceSync:
         self.reports_dir.mkdir(parents=True, exist_ok=True)
         self.port = port
         self.service_type = service_type
-        self._http_server: Optional[ThreadingHTTPServer] = None
-        self._http_thread: Optional[threading.Thread] = None
-        self._zc = None
-        self._service_info = None
+        self._http_server: ThreadingHTTPServer | None = None
+        self._http_thread: threading.Thread | None = None
+        self._zc: Any = None
+        self._service_info: Any = None
         self._enabled = False
 
     def _build_handler(self):
@@ -51,7 +52,7 @@ class MultiDeviceSync:
             def log_message(self, format: str, *args):  # noqa: A003
                 return
 
-            def _send_json(self, payload: Dict[str, object], status: int = 200):
+            def _send_json(self, payload: dict[str, object], status: int = 200):
                 body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
@@ -67,7 +68,10 @@ class MultiDeviceSync:
                 if self.path.startswith("/reports/"):
                     filename = self.path.split("/reports/", 1)[1]
                     report_path = (parent.reports_dir / filename).resolve()
-                    if not report_path.exists() or parent.reports_dir.resolve() not in report_path.parents:
+                    if (
+                        not report_path.exists()
+                        or parent.reports_dir.resolve() not in report_path.parents
+                    ):
                         self.send_response(404)
                         self.end_headers()
                         return
@@ -115,7 +119,9 @@ class MultiDeviceSync:
         try:
             handler = self._build_handler()
             self._http_server = ThreadingHTTPServer(("0.0.0.0", self.port), handler)
-            self._http_thread = threading.Thread(target=self._http_server.serve_forever, daemon=True)
+            self._http_thread = threading.Thread(
+                target=self._http_server.serve_forever, daemon=True
+            )
             self._http_thread.start()
         except Exception:
             self._http_server = None
@@ -162,14 +168,14 @@ class MultiDeviceSync:
         self._service_info = None
         self._enabled = False
 
-    def discover_peers(self, timeout_s: float = 1.5) -> List[SyncPeer]:
-        peers: List[SyncPeer] = []
+    def discover_peers(self, timeout_s: float = 1.5) -> list[SyncPeer]:
+        peers: list[SyncPeer] = []
         try:
             from zeroconf import ServiceBrowser, ServiceListener, Zeroconf  # type: ignore
 
             class _Listener(ServiceListener):
                 def __init__(self):
-                    self.names: List[str] = []
+                    self.names: list[str] = []
 
                 def add_service(self, zc, type_, name):  # noqa: N803
                     self.names.append(name)
@@ -191,11 +197,15 @@ class MultiDeviceSync:
                     continue
                 host = socket.inet_ntoa(info.addresses[0])
                 port = info.port
+                if port is None:
+                    continue
                 if host in {"127.0.0.1", "0.0.0.0"} and port == self.port:
                     continue
                 status = {}
                 try:
-                    with urllib.request.urlopen(f"http://{host}:{port}/status", timeout=1.2) as response:
+                    with urllib.request.urlopen(
+                        f"http://{host}:{port}/status", timeout=1.2
+                    ) as response:
                         status = json.loads(response.read().decode("utf-8"))
                 except (urllib.error.URLError, json.JSONDecodeError, TimeoutError):
                     status = {}

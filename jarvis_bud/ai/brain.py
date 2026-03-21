@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any
 
 from jarvis_bud.ai.memory import TinyMemory
 from jarvis_bud.ai.prompts import build_system_prompt
@@ -30,8 +30,8 @@ class EdgeBrain:
         self.audit = audit
         self.memory = TinyMemory(memory_path)
         self.vibe_level = vibe_level
-        self._llm = None
-        self._model_path = None
+        self._llm: Any = None
+        self._model_path: str | None = None
         self._load_llm()
 
     def _load_llm(self) -> None:
@@ -74,7 +74,7 @@ class EdgeBrain:
             score = max(score, 7)
         return min(score, 10)
 
-    def _build_prompt(self, user_prompt: str, memory_context: List[str]) -> str:
+    def _build_prompt(self, user_prompt: str, memory_context: list[str]) -> str:
         payload = {
             "system": build_system_prompt(vibe_level=self.vibe_level),
             "memory": memory_context,
@@ -102,7 +102,7 @@ class EdgeBrain:
             return "{}"
         return output["choices"][0]["text"].strip()
 
-    def respond(self, user_prompt: str) -> Dict[str, object]:
+    def respond(self, user_prompt: str) -> dict[str, object]:
         risk = self.score_risk(user_prompt)
         memory = [item.text for item in self.memory.retrieve(user_prompt, k=3)]
         prompt = self._build_prompt(user_prompt=user_prompt, memory_context=memory)
@@ -118,7 +118,7 @@ class EdgeBrain:
         )
 
         # Best-effort parse of structured JSON. Fallback to plain text.
-        parsed: Dict[str, object]
+        parsed: dict[str, object]
         try:
             candidate = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
             parsed = json.loads(candidate)

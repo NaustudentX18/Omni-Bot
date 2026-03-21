@@ -8,7 +8,6 @@ import os
 import random
 import sys
 import time
-from typing import Optional
 
 from jarvis_bud.ai import EdgeBrain
 from jarvis_bud.audit import AuditLogger
@@ -48,9 +47,11 @@ class JarvisBud:
         )
 
         # Hardware
-        self.whisplay: Optional[WhisplayIO] = None
-        self.battery: Optional[Battery] = None
-        tts_model = self.config_manager.get("tts.model_path", "models/piper/en_US-lessac-medium.onnx")
+        self.whisplay: WhisplayIO | None = None
+        self.battery: Battery | None = None
+        tts_model = self.config_manager.get(
+            "tts.model_path", "models/piper/en_US-lessac-medium.onnx"
+        )
         tts_profile = self.config_manager.get("tts.profile", "cyberpunk")
         self.tts = SpeechSynth(piper_model=tts_model, profile=tts_profile)
         stt_model = self.config_manager.get("stt.model_size", "tiny.en")
@@ -58,16 +59,16 @@ class JarvisBud:
         self.stt = SpeechToTextEngine(model_size=stt_model, sample_rate=stt_sample_rate)
 
         # UI
-        self.renderer: Optional[FrameRenderer] = None
+        self.renderer: FrameRenderer | None = None
         self.animator = WaveformAnimator()
-        self.dashboard: Optional[DashboardServer] = None
+        self.dashboard: DashboardServer | None = None
         self.ota_updater = OTAUpdater(repo_path=".")
-        self.sync_service: Optional[MultiDeviceSync] = None
+        self.sync_service: MultiDeviceSync | None = None
         self._last_sync_peer_count = 0
 
         # AI and personalities
         self.brain = EdgeBrain(audit=self.audit, vibe_level=self.config_manager.get_vibe_level())
-        self.bud_manager: Optional[BudManager] = None
+        self.bud_manager: BudManager | None = None
         self.voice_parser = VoiceCommandParser()
 
         # Tool runner with risk-gated execution
@@ -87,7 +88,7 @@ class JarvisBud:
         self._last_prompt = ""
         self._last_ai_thought = "Boot sequence complete"
         self._last_risk = 1
-        self._targets = []
+        self._targets: list[str] = []
         self._last_haiku_ts = 0.0
         self._haikus = [
             "Neon rain whispers / silicon ghosts map the night / buttons wake the storm",
@@ -102,7 +103,9 @@ class JarvisBud:
     def _refresh_battery_snapshot(self, force: bool = False) -> dict:
         """Refresh cached battery status with light rate limiting."""
         now = time.monotonic()
-        should_refresh = force or (now - self._last_battery_refresh) >= self._battery_refresh_interval_s
+        should_refresh = (
+            force or (now - self._last_battery_refresh) >= self._battery_refresh_interval_s
+        )
         if should_refresh and self.battery:
             status = self.battery.get_status()
             self._battery_snapshot["percentage"] = int(status.get("percentage", 100))
@@ -124,7 +127,9 @@ class JarvisBud:
             print("  Open that URL in any browser on the same network,")
             print("  or continue below for the terminal wizard.\n")
             print("━" * 60 + "\n")
-            wizard = SetupWizard(config_path=self.config_manager.config_path, buds_path=self.buds_path)
+            wizard = SetupWizard(
+                config_path=self.config_manager.config_path, buds_path=self.buds_path
+            )
             if wizard.run_interactive():
                 self.config_manager.load()
                 self.config_manager.load_runtime()
@@ -152,7 +157,9 @@ class JarvisBud:
             # Dramatic boot matrix animation for physical startup.
             if self.renderer and self.whisplay:
                 for frame in range(20):
-                    self.renderer.render_matrix_boot(self.whisplay.display, frame_idx=frame, total_frames=20)
+                    self.renderer.render_matrix_boot(
+                        self.whisplay.display, frame_idx=frame, total_frames=20
+                    )
                     time.sleep(0.03)
             print("✅ Hardware initialized successfully\n")
             return True
@@ -164,7 +171,14 @@ class JarvisBud:
         print("\n🧠 Initializing offline-first AI stack...\n")
         try:
             configured_ollama = self.config_manager.get_ollama_url()
-            candidates = ["127.0.0.1", "pironman", "naspi", "192.168.1.100", "192.168.1.101", "192.168.1.110"]
+            candidates = [
+                "127.0.0.1",
+                "pironman",
+                "naspi",
+                "192.168.1.100",
+                "192.168.1.101",
+                "192.168.1.110",
+            ]
             if configured_ollama and configured_ollama.startswith("http://"):
                 host = configured_ollama.replace("http://", "").split(":")[0]
                 if host not in candidates:
@@ -178,7 +192,9 @@ class JarvisBud:
                 brain=self.brain,
             )
             preferred = self.config_manager.get("bud.id", "fogo")
-            self.bud_manager.set_active_bud(preferred if preferred in self.bud_manager.buds else "fogo")
+            self.bud_manager.set_active_bud(
+                preferred if preferred in self.bud_manager.buds else "fogo"
+            )
             self.current_bud = self.bud_manager.active_profile.name
 
             if endpoint:
@@ -264,7 +280,9 @@ class JarvisBud:
             if button_confirm(self.whisplay.buttons, timeout_s=8.0):
                 return True
         if sys.stdin.isatty():
-            choice = input(f"Apply OTA update ({behind_count} commit(s)) now? [y/N]: ").strip().lower()
+            choice = (
+                input(f"Apply OTA update ({behind_count} commit(s)) now? [y/N]: ").strip().lower()
+            )
             return choice in {"y", "yes"}
         return False
 
@@ -273,16 +291,24 @@ class JarvisBud:
             return
         status = self.ota_updater.check_updates()
         if status.error:
-            self.audit.log_event("ota.check_error", {"error": status.error, "branch": status.branch})
+            self.audit.log_event(
+                "ota.check_error", {"error": status.error, "branch": status.branch}
+            )
             return
         if not status.available:
             return
-        self.audit.log_event("ota.available", {"branch": status.branch, "behind_count": status.behind_count})
+        self.audit.log_event(
+            "ota.available", {"branch": status.branch, "behind_count": status.behind_count}
+        )
         if not self._confirm_ota_update(status.behind_count):
-            self.audit.log_event("ota.skipped", {"branch": status.branch, "behind_count": status.behind_count})
+            self.audit.log_event(
+                "ota.skipped", {"branch": status.branch, "behind_count": status.behind_count}
+            )
             return
         ok, message = self.ota_updater.apply_update()
-        self.audit.log_event("ota.apply", {"ok": ok, "message": message[:220], "branch": status.branch})
+        self.audit.log_event(
+            "ota.apply", {"ok": ok, "message": message[:220], "branch": status.branch}
+        )
         if self.renderer and self.whisplay:
             self.renderer.render_message(
                 self.whisplay.display,
@@ -336,7 +362,9 @@ class JarvisBud:
         """Require explicit confirmation for risk >= threshold."""
         self.audit.log_event("confirm.request", {"tool": tool_name, "risk": risk})
         if os.environ.get("NXTGENAI_AUTO_CONFIRM", "").lower() in {"1", "true", "yes"}:
-            self.audit.log_event("confirm.result", {"tool": tool_name, "risk": risk, "approved": True, "mode": "env"})
+            self.audit.log_event(
+                "confirm.result", {"tool": tool_name, "risk": risk, "approved": True, "mode": "env"}
+            )
             return True
 
         if self.renderer and self.whisplay:
@@ -347,7 +375,9 @@ class JarvisBud:
                 emoji="⚠️",
                 message_type="warning",
             )
-            self.renderer.render_risk_meter(self.whisplay.display, risk=risk, dry_run=self.tools.dry_run)
+            self.renderer.render_risk_meter(
+                self.whisplay.display, risk=risk, dry_run=self.tools.dry_run
+            )
             self.whisplay.display.update()
 
         # Button-based confirmation path: hold Button A for a brief tap window.
@@ -366,7 +396,10 @@ class JarvisBud:
                 {"tool": tool_name, "risk": risk, "approved": approved, "mode": "stdin"},
             )
             return approved
-        self.audit.log_event("confirm.result", {"tool": tool_name, "risk": risk, "approved": False, "mode": "timeout"})
+        self.audit.log_event(
+            "confirm.result",
+            {"tool": tool_name, "risk": risk, "approved": False, "mode": "timeout"},
+        )
         return False
 
     def _transcribe_audio(self, audio_data: bytes) -> str:
@@ -385,7 +418,9 @@ class JarvisBud:
 
     def _execute_voice_intent(self, intent: VoiceIntent) -> str:
         self._last_risk = intent.risk
-        self.audit.log_event("voice.command", {"command": intent.command, "args": intent.args, "risk": intent.risk})
+        self.audit.log_event(
+            "voice.command", {"command": intent.command, "args": intent.args, "risk": intent.risk}
+        )
 
         if intent.command == "status":
             battery = self._refresh_battery_snapshot(force=True)
@@ -454,14 +489,18 @@ class JarvisBud:
             self.god_mode = True
             self.config_manager.set_runtime("god_mode", "true")
             self._last_ai_thought = "Legendary protocol online // neon overdrive"
-            return "Legendary mode activated. Simulation blitz completed. Report aesthetics upgraded."
+            return (
+                "Legendary mode activated. Simulation blitz completed. Report aesthetics upgraded."
+            )
 
         if intent.command == "crack_wifi":
             if self.god_mode:
                 return "God mode simulation: fake WPA handshake captured and converted to 22000 in 2.3s."
             iface = os.environ.get("NXTGENAI_WIFI_IFACE", "wlan0mon")
             results = self.tools.wifi_crack(iface=iface, capture_prefix="/tmp/nxtgenai_capture")
-            return "WiFi workflow finished: " + ", ".join(f"{k}={v.returncode}" for k, v in results.items())
+            return "WiFi workflow finished: " + ", ".join(
+                f"{k}={v.returncode}" for k, v in results.items()
+            )
 
         # Default chat flow with planning/reflection under Bud manager.
         text = intent.args.get("text", "")
@@ -488,7 +527,9 @@ class JarvisBud:
                     is_charging=battery_snapshot["charging"],
                     connectivity_status=self.connectivity_mode,
                     animation_frame=animation_frame,
-                    activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
+                    activity_icon=(
+                        self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else ""
+                    ),
                 )
 
             print("🎙️ Listening...")
@@ -499,7 +540,9 @@ class JarvisBud:
                 return
 
             command_text = self._transcribe_audio(audio_data)
-            intent = self.voice_parser.parse(command_text) or VoiceIntent(command="chat", args={"text": command_text}, risk=1)
+            intent = self.voice_parser.parse(command_text) or VoiceIntent(
+                command="chat", args={"text": command_text}, risk=1
+            )
             response = self._execute_voice_intent(intent)
             self._last_ai_thought = response[:120]
             if response:
@@ -522,8 +565,12 @@ class JarvisBud:
                         self._last_haiku_ts = time.monotonic()
                     battery_snapshot = self._refresh_battery_snapshot()
                     if self.is_listening:
-                        audio_level = self.whisplay.audio.get_audio_level() if self.whisplay else 0.5
-                        animation_frame = self.animator.get_frame("listening", audio_level=audio_level)
+                        audio_level = (
+                            self.whisplay.audio.get_audio_level() if self.whisplay else 0.5
+                        )
+                        animation_frame = self.animator.get_frame(
+                            "listening", audio_level=audio_level
+                        )
                     else:
                         animation_frame = self.animator.get_frame("idle")
 
@@ -534,12 +581,22 @@ class JarvisBud:
                         is_charging=battery_snapshot["charging"],
                         connectivity_status=self.connectivity_mode,
                         animation_frame=animation_frame,
-                        activity_icon=self.bud_manager.active_icon(self._last_prompt) if self.bud_manager else "",
+                        activity_icon=(
+                            self.bud_manager.active_icon(self._last_prompt)
+                            if self.bud_manager
+                            else ""
+                        ),
                     )
-                    self.renderer.render_ai_thought_ticker(self.whisplay.display, self._last_ai_thought, offset=ticker_offset)
-                    self.renderer.render_risk_meter(self.whisplay.display, risk=self._last_risk, dry_run=self.tools.dry_run)
+                    self.renderer.render_ai_thought_ticker(
+                        self.whisplay.display, self._last_ai_thought, offset=ticker_offset
+                    )
+                    self.renderer.render_risk_meter(
+                        self.whisplay.display, risk=self._last_risk, dry_run=self.tools.dry_run
+                    )
                     if not self.is_listening:
-                        self.renderer.render_idle_matrix_overlay(self.whisplay.display, tick=ticker_offset)
+                        self.renderer.render_idle_matrix_overlay(
+                            self.whisplay.display, tick=ticker_offset
+                        )
                     if self.god_mode:
                         self.renderer.apply_glitch(self.whisplay.display, intensity=0.35)
                     self.whisplay.display.update()
@@ -557,7 +614,9 @@ class JarvisBud:
                     status = self._refresh_battery_snapshot(force=True)
                     if status["percentage"] < 10:
                         print("🚨 CRITICAL: Battery very low!")
-                        self.audit.log_event("battery.critical", {"percentage": status["percentage"]})
+                        self.audit.log_event(
+                            "battery.critical", {"percentage": status["percentage"]}
+                        )
                         if self.renderer and self.whisplay:
                             self.renderer.render_message(
                                 self.whisplay.display,
@@ -573,7 +632,10 @@ class JarvisBud:
 
     async def async_main_loop(self):
         print("\n🚀 Starting Jarvis-Bud async event loop...\n")
-        tasks = [asyncio.create_task(self._update_display_loop()), asyncio.create_task(self._battery_monitor_loop())]
+        tasks = [
+            asyncio.create_task(self._update_display_loop()),
+            asyncio.create_task(self._battery_monitor_loop()),
+        ]
         try:
             await asyncio.gather(*tasks)
         except KeyboardInterrupt:
@@ -583,7 +645,7 @@ class JarvisBud:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    def export_reports(self, passphrase: Optional[str] = None) -> Optional[str]:
+    def export_reports(self, passphrase: str | None = None) -> str | None:
         """Generate HTML report and export encrypted ZIP to mounted USB."""
         if self.renderer and self.whisplay:
             self.renderer.render_message(

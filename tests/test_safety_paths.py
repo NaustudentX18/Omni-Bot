@@ -10,8 +10,7 @@ from unittest.mock import patch
 
 from jarvis_bud.audit import AuditLogger
 from jarvis_bud.hardware.tts import SpeechSynth
-from jarvis_bud.reporting import _find_usb_mount
-from jarvis_bud.reporting import ReportBuilder, TimelineEvent
+from jarvis_bud.reporting import ReportBuilder, TimelineEvent, _find_usb_mount
 from jarvis_bud.tools import ToolRunner
 from jarvis_bud.voice import VoiceCommandParser
 
@@ -50,7 +49,9 @@ def test_toolrunner_high_risk_needs_confirmation():
 def test_toolrunner_stop_all_kills_tracked_processes():
     with tempfile.TemporaryDirectory() as tmp:
         audit = AuditLogger(str(Path(tmp) / "audit.jsonl"))
-        runner = ToolRunner(audit=audit, dry_run=False, confirm_callback=lambda _t, _r: True, drop_privileges=False)
+        runner = ToolRunner(
+            audit=audit, dry_run=False, confirm_callback=lambda _t, _r: True, drop_privileges=False
+        )
         proc = subprocess.Popen(["sleep", "30"], start_new_session=True)
         try:
             runner._tracked[proc.pid] = proc
@@ -128,14 +129,25 @@ def test_speech_synth_piper_path_avoids_shell_execution():
         return piper_proc if len(popen_calls) == 1 else aplay_proc
 
     message = 'hello $(touch /tmp/pwned); `id` | whoami & "quote"'
-    with patch("jarvis_bud.hardware.tts.subprocess.Popen", side_effect=_fake_popen), patch(
-        "jarvis_bud.hardware.tts.subprocess.run"
-    ) as run_mock:
+    with (
+        patch("jarvis_bud.hardware.tts.subprocess.Popen", side_effect=_fake_popen),
+        patch("jarvis_bud.hardware.tts.subprocess.run") as run_mock,
+    ):
         assert synth.speak(message) is True
         run_mock.assert_not_called()
 
     assert popen_calls[0][0] == [synth.piper_bin, "--model", synth.piper_model, "--output-raw"]
-    assert popen_calls[1][0] == [synth.aplay_bin, "-q", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-"]
+    assert popen_calls[1][0] == [
+        synth.aplay_bin,
+        "-q",
+        "-r",
+        "22050",
+        "-f",
+        "S16_LE",
+        "-t",
+        "raw",
+        "-",
+    ]
     assert "shell" not in popen_calls[0][1]
     assert "shell" not in popen_calls[1][1]
     assert piper_proc.stdin.writes == [message.encode("utf-8")]

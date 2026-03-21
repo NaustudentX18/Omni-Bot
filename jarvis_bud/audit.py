@@ -14,8 +14,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 GENESIS_HASH = "0" * 64
 
@@ -26,7 +25,7 @@ class AuditRecord:
 
     ts: float
     event: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     prev_hash: str
     hash: str
 
@@ -82,7 +81,7 @@ class AuditLogger:
         return GENESIS_HASH
 
     @staticmethod
-    def _canonical_payload(event: str, payload: Dict[str, Any], ts: float, prev_hash: str) -> str:
+    def _canonical_payload(event: str, payload: dict[str, Any], ts: float, prev_hash: str) -> str:
         return json.dumps(
             {"event": event, "payload": payload, "prev_hash": prev_hash, "ts": ts},
             sort_keys=True,
@@ -90,15 +89,19 @@ class AuditLogger:
             separators=(",", ":"),
         )
 
-    def log_event(self, event: str, payload: Optional[Dict[str, Any]] = None) -> AuditRecord:
+    def log_event(self, event: str, payload: dict[str, Any] | None = None) -> AuditRecord:
         """Append an event into the hash chain and fsync to disk."""
         payload = payload or {}
         ts = time.time()
         with self._lock:
             prev_hash = self._last_hash
-            canonical = self._canonical_payload(event=event, payload=payload, ts=ts, prev_hash=prev_hash)
+            canonical = self._canonical_payload(
+                event=event, payload=payload, ts=ts, prev_hash=prev_hash
+            )
             record_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-            record = AuditRecord(ts=ts, event=event, payload=payload, prev_hash=prev_hash, hash=record_hash)
+            record = AuditRecord(
+                ts=ts, event=event, payload=payload, prev_hash=prev_hash, hash=record_hash
+            )
 
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(record.to_json() + "\n")
